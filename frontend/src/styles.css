@@ -1,0 +1,188 @@
+:root {
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+  color: #0f1c2f;
+  background: #f5f7fb;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: linear-gradient(180deg, #0f1c2f, #16243f);
+  color: #dae1f1;
+}
+
+#root {
+  padding: 1.5rem;
+  width: 100%;
+  max-width: none;
+}
+
+.ide-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.ide-header h1 {
+  margin: 0;
+  font-size: 2.4rem;
+}
+
+.ide-header p {
+  margin: 0.3rem 0 0;
+  color: #9bb2d9;
+}
+
+.ide-main {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(280px, 360px);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.ide-left-column {
+  flex: 1 1 auto;
+}
+
+.ide-left-column,
+.ide-side-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.ide-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1rem;
+  padding: 1rem;
+  box-shadow: 0 20px 45px rgba(5, 10, 25, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.ide-card header h2 {
+  margin: 0;
+}
+
+.canvas-card {
+  min-height: 520px;
+}
+
+textarea {
+  width: 100%;
+  border-radius: 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(15, 28, 47, 0.8);
+  color: #fff;
+  padding: 0.8rem;
+  font-size: 0.95rem;
+}
+
+button {
+  margin-top: 0.6rem;
+  padding: 0.65rem 1.1rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: linear-gradient(135deg, #0dd0ff, #3c7efc);
+  color: #041725;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.grafcet-canvas {
+  height: 320px;
+  border-radius: 0.75rem;
+  border: 1px dashed rgba(255, 255, 255, 0.3);
+  background: rgba(10, 16, 33, 0.8);
+}
+
+.canvas-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.canvas-controls button {
+  font-size: 0.9rem;
+  padding: 0.5rem 0.9rem;
+}
+
+.canvas-controls .canvas-hint {
+  font-size: 0.78rem;
+  color: #9bb2d9;
+}
+
+.grafcet-guidelines {
+  margin-top: 1rem;
+  padding: 0.8rem;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.grafcet-guidelines h3 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  color: #9bb2d9;
+}
+
+.grafcet-guidelines ul {
+  margin: 0;
+  padding-left: 1rem;
+  list-style: disc;
+  font-size: 0.85rem;
+  color: #dfe7ff;
+}
+
+.grafcet-guidelines li + li {
+  margin-top: 0.35rem;
+}
+
+.ladder-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.ladder-list li {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.variables-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.variables-table th,
+.variables-table td {
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.variables-table tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ide-side-column article {
+  min-height: 240px;
+}
+
+@media (max-width: 1024px) {
+  .ide-main {
+    grid-template-columns: 1fr;
+  }
+
+  .canvas-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
