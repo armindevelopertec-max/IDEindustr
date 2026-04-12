@@ -2,7 +2,7 @@ from typing import Dict, List, Optional
 
 
 def parse_cnl(text: str) -> List[Dict[str, str]]:
-    """Extract WHEN/THEN rules with optional targets."""
+    """Extract WHEN/THEN rules with optional sources and targets."""
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     parsed = []
 
@@ -11,7 +11,12 @@ def parse_cnl(text: str) -> List[Dict[str, str]]:
             continue
 
         pre_then, post_then = line.split("THEN", 1)
-        condition = pre_then.split("WHEN", 1)[-1].strip()
+        when_parts = pre_then.split("WHEN", 1)
+        before_when = when_parts[0].strip()
+        condition = when_parts[1].strip() if len(when_parts) > 1 else ""
+        source: Optional[str] = None
+        if before_when.upper().startswith("S") and before_when[1:].isdigit():
+            source = before_when.upper()
 
         action = post_then.strip()
         target: Optional[str] = None
@@ -25,6 +30,7 @@ def parse_cnl(text: str) -> List[Dict[str, str]]:
 
         parsed.append(
             {
+                "source": source,
                 "condition": condition,
                 "action": action,
                 "target": target,

@@ -11,6 +11,11 @@ const HORIZONTAL_SPACING = NODE_WIDTH + ACTION_WIDTH + 90;
 let stage = null;
 let layer = null;
 let containerElement = null;
+let isPanning = false;
+let panLastPointer = null;
+
+const changeListeners = new Set();
+let lastModelSignature = "";
 
 const canvasState = {
   steps: [],
@@ -34,6 +39,71 @@ export function setupGrafcetCanvas(containerId) {
   layer = new Konva.Layer();
   stage.add(layer);
 
+  const stageContainer = stage.container();
+  const shouldStartPan = (evt) =>
+    Boolean(
+      evt &&
+        (evt.altKey ||
+          evt.shiftKey ||
+          evt.ctrlKey ||
+          evt.button === 2 ||
+          (evt.touches && evt.touches.length === 2)),
+    );
+
+  stage.on("mousedown touchstart", (event) => {
+    const evt = event.evt;
+    if (!shouldStartPan(evt)) return;
+    isPanning = true;
+    panLastPointer = stage.getPointerPosition();
+    if (stageContainer) {
+      stageContainer.style.cursor = "grabbing";
+    }
+  });
+
+  stage.on("mouseup touchend", () => {
+    isPanning = false;
+    panLastPointer = null;
+    if (stageContainer) {
+      stageContainer.style.cursor = "default";
+    }
+  });
+
+  stage.on("mousemove touchmove", (event) => {
+    if (!isPanning) return;
+    const pointer = stage.getPointerPosition();
+    if (!pointer || !panLastPointer) return;
+    const dx = pointer.x - panLastPointer.x;
+    const dy = pointer.y - panLastPointer.y;
+    stage.position({
+      x: stage.x() + dx,
+      y: stage.y() + dy,
+    });
+    panLastPointer = pointer;
+    stage.batchDraw();
+  });
+
+  stage.on("wheel", (event) => {
+    event.evt.preventDefault();
+    const oldScale = stage.scaleX() || 1;
+    const pointer = stage.getPointerPosition();
+    const scaleBy = 1.08;
+    const newScale =
+      event.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy;
+    const limitedScale = Math.min(3, Math.max(0.5, newScale));
+    if (!pointer) return;
+    const mousePointTo = {
+      x: (pointer.x - stage.x()) / oldScale,
+      y: (pointer.y - stage.y()) / oldScale,
+    };
+    stage.scale({ x: limitedScale, y: limitedScale });
+    const newPos = {
+      x: pointer.x - mousePointTo.x * limitedScale,
+      y: pointer.y - mousePointTo.y * limitedScale,
+    };
+    stage.position(newPos);
+    stage.batchDraw();
+  });
+
   window.addEventListener("resize", () => {
     if (!stage || !containerElement) return;
     stage.width(containerElement.clientWidth);
@@ -47,6 +117,16 @@ export function setupGrafcetCanvas(containerId) {
       steps: canvasState.steps.map((step) => ({ ...step })),
       nextStepId: canvasState.nextStepId,
     }),
+    subscribe: (listener) => {
+      if (typeof listener !== "function") {
+        return () => {};
+      }
+
+      changeListeners.add(listener);
+      listener(cloneSteps(canvasState.steps));
+
+      return () => changeListeners.delete(listener);
+    },
   };
 }
 
@@ -130,87 +210,129 @@ function drawGrafcetSteps() {
     return;
   }
 
-  const levelsMap = new Map();
-  canvasState.steps.forEach((step) => {
-    const level = step.level;
-    if (!levelsMap.has(level)) {
-      levelsMap.set(level, []);
-    }
-    levelsMap.get(level).push(step);
-  });
-
-  const orderedLevels = Array.from(levelsMap.keys()).sort((a, b) => a - b);
-
   const positions = {};
-  let requiredWidth = 0;
-
-  orderedLevels.forEach((level, levelIdx) => {
-    const y = 40 + levelIdx * LEVEL_VERTICAL_GAP;
-    const stepsInLevel = levelsMap.get(level) ?? [];
-    stepsInLevel.forEach((step, index) => {
-      const x = 50 + index * HORIZONTAL_SPACING;
-      positions[step.name] = { x, y };
-      requiredWidth = Math.max(requiredWidth, x + NODE_WIDTH + ACTION_WIDTH + 80);
+  const levelGroups = new Map();
+  const adjacency = new Map();
+  canvasState.steps.forEach((step) => {
+    adjacency.set(step.name, []);
+  });
+  canvasState.steps.forEach((step) => {
+    (step.transitions ?? []).forEach((transition) => {
+      adjacency.get(step.name)?.push(transition.target);
     });
   });
 
-  // Center parent steps horizontally over their children
-  const hierarchy = new Map();
+  const depthMap = new Map();
+  canvasState.steps.forEach((step) => {
+    depthMap.set(step.name, Number.POSITIVE_INFINITY);
+  });
+  const root = "S0";
+  const queue = [];
+  if (depthMap.has(root)) {
+    depthMap.set(root, 0);
+    queue.push(root);
+  } else if (canvasState.steps.length) {
+    depthMap.set(canvasState.steps[0].name, 0);
+    queue.push(canvasState.steps[0].name);
+  }
+
+  while (queue.length) {
+    const current = queue.shift();
+    const currentDepth = depthMap.get(current) ?? 0;
+    const neighbors = adjacency.get(current) ?? [];
+    neighbors.forEach((neighbor) => {
+      if (!depthMap.has(neighbor)) {
+        depthMap.set(neighbor, currentDepth + 1);
+      } else if ((depthMap.get(neighbor) ?? 0) > currentDepth + 1) {
+        depthMap.set(neighbor, currentDepth + 1);
+      }
+      queue.push(neighbor);
+    });
+  }
+
+  canvasState.steps.forEach((step) => {
+    const depth = Number.isFinite(depthMap.get(step.name))
+      ? depthMap.get(step.name)
+      : 0;
+    if (!levelGroups.has(depth)) {
+      levelGroups.set(depth, []);
+    }
+    levelGroups.get(depth).push(step);
+  });
+  const orderedLevels = [...levelGroups.keys()].sort((a, b) => a - b);
+
+  let requiredWidth = 0;
+  let requiredHeight = 0;
+  const LEVEL_VERTICAL_STEP = NODE_HEIGHT + 90;
+  const LEVEL_HORIZONTAL_SPACING = NODE_WIDTH + 60;
+  const layoutGroups = [];
+
+  orderedLevels.forEach((level) => {
+    const nodes = levelGroups.get(level) ?? [];
+    const rowY = 40 + level * LEVEL_VERTICAL_STEP;
+    const levelWidth = nodes.length * LEVEL_HORIZONTAL_SPACING;
+    requiredWidth = Math.max(requiredWidth, levelWidth);
+    layoutGroups.push({ level, nodes, rowY, levelWidth });
+  });
+
+  const containerWidth = containerElement?.clientWidth ?? 800;
+  const stageWidth = Math.max(containerWidth, requiredWidth + 160, 520);
+  const stageCenterX = stageWidth / 2;
+
+  layoutGroups.forEach(({ level, nodes, rowY, levelWidth }) => {
+    nodes.forEach((step, index) => {
+      const offsetX =
+        -(levelWidth / 2) + index * LEVEL_HORIZONTAL_SPACING + LEVEL_HORIZONTAL_SPACING / 2;
+      const x = stageCenterX + offsetX;
+      const y = rowY;
+      positions[step.name] = { x, y };
+      requiredHeight = Math.max(requiredHeight, y + NODE_HEIGHT + 40);
+    });
+  });
+
+  const parentChildren = new Map();
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
-      if (!hierarchy.has(transition.source)) {
-        hierarchy.set(transition.source, []);
+      if (!parentChildren.has(step.name)) {
+        parentChildren.set(step.name, []);
       }
-      hierarchy.get(transition.source).push(transition.target);
+      parentChildren.get(step.name).push(transition.target);
     });
   });
 
-  const sortedByLevel = [...canvasState.steps].sort((a, b) => a.level - b.level);
-  sortedByLevel.forEach((step) => {
-    const children = hierarchy.get(step.name) ?? [];
-    const childPositions = children
-      .map((childName) => positions[childName])
-      .filter(Boolean);
-
-    if (childPositions.length && positions[step.name]) {
-      const avgX =
-        childPositions.reduce((sum, child) => sum + child.x, 0) / childPositions.length;
-      positions[step.name].x = avgX;
-    }
+  const horizontalSpacing = NODE_WIDTH + 40;
+  parentChildren.forEach((children, parent) => {
+    if (children.length <= 1) return;
+    const parentPos = positions[parent];
+    if (!parentPos) return;
+    const centerOffset = (children.length - 1) / 2;
+    children.forEach((childName, index) => {
+      const childPos = positions[childName];
+      if (!childPos) return;
+      childPos.x = parentPos.x + (index - centerOffset) * horizontalSpacing;
+      requiredWidth = Math.max(requiredWidth, childPos.x + NODE_WIDTH + ACTION_WIDTH + 60);
+    });
   });
 
-  const stageWidth = Math.max(stage.width(), requiredWidth, 520);
+  const containerHeight = containerElement?.clientHeight ?? stage.height();
+  const stageHeight = Math.max(containerHeight, requiredHeight + 80, 400);
   stage.width(stageWidth);
-  const totalHeight = Math.max(
-    stage.height(),
-    40 + orderedLevels.length * LEVEL_VERTICAL_GAP + 120,
-  );
-  stage.height(totalHeight);
+  stage.height(stageHeight);
 
-  orderedLevels.forEach((level, levelIdx) => {
-    const y = 40 + levelIdx * LEVEL_VERTICAL_GAP;
-    const band = new Konva.Rect({
-      x: 20,
-      y: y - 25,
-      width: stage.width() - 40,
-      height: NODE_HEIGHT + 70,
-      fill: level % 2 ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.04)",
-    });
-    layer.add(band);
-  });
 
   canvasState.steps.forEach((step) => {
     const pos = positions[step.name];
     if (!pos) return;
 
+    const isError = Boolean(step.error);
     const rect = new Konva.Rect({
       x: pos.x,
       y: pos.y,
       width: NODE_WIDTH,
       height: NODE_HEIGHT,
-      fill: "#66b2ff",
+      fill: isError ? "#ff6b6b" : step.active ? "#4df59f" : "#66b2ff",
       cornerRadius: 6,
-      stroke: "#ffffff",
+      stroke: isError ? "#ffb0b0" : "#ffffff",
       strokeWidth: step.level === 0 ? 3 : 2,
       draggable: true,
     });
@@ -233,7 +355,7 @@ function drawGrafcetSteps() {
       y: pos.y + (NODE_HEIGHT - 20) / 2,
       width: NODE_WIDTH,
       align: "center",
-      text: `${typeof step.level === "number" ? step.level : ""}`,
+      text: `${step.name ?? ""}`,
       fill: "#041725",
       fontSize: 16,
       fontStyle: "bold",
@@ -315,12 +437,20 @@ function drawGrafcetSteps() {
     layer.add(rect, label, actionHint);
   });
 
+  const topNodeY =
+    Object.values(positions).reduce((min, pos) => Math.min(min, pos.y), Infinity) ??
+    40;
+  const wrapStartY = Math.max(12, topNodeY - 24);
+
   const transitionsPerSource = new Map();
+  const stepLookup = new Map(canvasState.steps.map((step) => [step.name, step]));
   canvasState.steps.forEach((stepItem) => {
     const count = stepItem.transitions?.length ?? 0;
     if (count > 0) transitionsPerSource.set(stepItem.name, count);
   });
   const transitionCounter = {};
+  const branchOffsetsBySource = new Map();
+  const branchHeightBySource = new Map();
 
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
@@ -328,37 +458,52 @@ function drawGrafcetSteps() {
       const target = positions[transition.target];
       if (!source || !target) return;
 
-      const totalFromSource = transitionsPerSource.get(source.name) ?? 1;
-      const idx = transitionCounter[source.name] ?? 0;
-      transitionCounter[source.name] = idx + 1;
+      const totalFromSource = transitionsPerSource.get(step.name) ?? 1;
+      const idx = transitionCounter[step.name] ?? 0;
+      transitionCounter[step.name] = idx + 1;
       const horizontalOffset = (idx - (totalFromSource - 1) / 2) * 18;
-      const verticalStartY = source.y + NODE_HEIGHT;
-      const midY = verticalStartY + 16;
-      const targetEntryY = target.y - 10;
+
       const startX = source.x + NODE_WIDTH / 2;
-      const horizontalBreakX = startX + horizontalOffset;
+      const startY = source.y + NODE_HEIGHT;
       const targetCenterX = target.x + NODE_WIDTH / 2;
-      const verticalMidY =
-        midY + (targetEntryY - midY) * 0.55;
+      const targetEntryY = target.y;
+      if (!branchOffsetsBySource.has(step.name)) {
+        branchOffsetsBySource.set(step.name, createBranchOffsets(totalFromSource));
+      }
+      const offsets = branchOffsetsBySource.get(step.name);
+      const offsetY = offsets[idx] ?? 0;
+      const horizontalY = startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + offsetY;
+      const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
+        ? stepLookup.get(transition.target)?.level
+        : 0;
+      const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
+      const finalTargetEntryY = targetEntryY + offsetY;
+
+      const verticalMidY = shouldLoop
+        ? (startY + finalTargetEntryY) / 2
+        : (horizontalY + finalTargetEntryY) / 2;
+
+      const points = shouldLoop
+        ? buildLoopPoints(startX + horizontalOffset, startY, targetCenterX, finalTargetEntryY)
+        : [
+            startX + horizontalOffset,
+            startY,
+            startX + horizontalOffset,
+            horizontalY,
+            targetCenterX,
+            horizontalY,
+            targetCenterX,
+            finalTargetEntryY,
+          ];
 
       const arrow = new Konva.Arrow({
-        points: [
-          startX,
-          verticalStartY,
-          startX,
-          midY,
-          horizontalBreakX,
-          midY,
-          targetCenterX,
-          midY,
-          targetCenterX,
-          targetEntryY,
-        ],
+        points,
         pointerLength: 10,
         pointerWidth: 10,
         stroke: "#ffffff",
         fill: "#ffffff",
         strokeWidth: 2,
+        tension: shouldLoop ? 0 : 0.5,
       });
 
       const labelX = targetCenterX - 24;
@@ -386,16 +531,16 @@ function drawGrafcetSteps() {
         const actuatorLine = new Konva.Line({
           points: [
             targetCenterX - actuatorLineLength,
-            verticalMidY,
+            labelY + 10,
             targetCenterX,
-            verticalMidY,
+            labelY + 10,
           ],
           stroke: "#f5d76d",
           strokeWidth: 2,
         });
         const actuatorLabel = new Konva.Text({
           x: targetCenterX + 8,
-          y: verticalMidY - 18,
+          y: labelY - 8,
           text: actuatorMatch[0].toUpperCase(),
           fontSize: 10,
           fill: "#f5d76d",
@@ -407,45 +552,81 @@ function drawGrafcetSteps() {
     });
   });
 
-  const lastSteps = levelsMap.get(Math.max(...orderedLevels)) ?? [];
-  if (lastSteps.length) {
-    const startStep = canvasState.steps.find((s) => s.level === 0);
-    const lastStep = lastSteps.at(-1);
-    if (startStep && lastStep) {
-      const lastPos = positions[lastStep.name];
-      const startPos = positions[startStep.name];
-      const safeX = stage.width() - 60;
-      const loopLine = new Konva.Arrow({
-        points: [
-          lastPos.x + NODE_WIDTH / 2,
-          lastPos.y + NODE_HEIGHT,
-          lastPos.x + NODE_WIDTH / 2,
-          lastPos.y + NODE_HEIGHT + 18,
-          safeX,
-          lastPos.y + NODE_HEIGHT + 18,
-          safeX,
-          startPos.y - 18,
-          startPos.x + NODE_WIDTH / 2,
-          startPos.y - 18,
-          startPos.x + NODE_WIDTH / 2,
-          startPos.y - 10,
-        ],
-        pointerLength: 10,
-        pointerWidth: 8,
-        stroke: "#4df59f",
-        fill: "#4df59f",
-        strokeWidth: 2,
-      });
-      const loopLabel = new Konva.Text({
-        x: lastPos.x + NODE_WIDTH / 2 + 20,
-        y: lastPos.y + NODE_HEIGHT + 18,
-        text: "=1 → retorno inicio",
-        fontSize: 11,
-        fill: "#4df59f",
-      });
-      layer.add(loopLine, loopLabel);
-    }
-  }
-
   layer.draw();
+  notifyModelChange();
+}
+
+function notifyModelChange() {
+  const signature = buildModelSignature(canvasState.steps);
+  if (signature === lastModelSignature) {
+    return;
+  }
+  lastModelSignature = signature;
+  const snapshot = cloneSteps(canvasState.steps);
+  changeListeners.forEach((listener) => listener(snapshot));
+}
+
+function buildModelSignature(steps) {
+  return steps
+    .map((step) => {
+      const actionsPart =
+        (step.actions ?? [])
+          .filter((action) => Boolean(action))
+          .join(",");
+      const transitionsPart = (step.transitions ?? [])
+        .map((transition) => {
+          const source = transition.source ?? step.name ?? "";
+          const target = transition.target ?? "";
+          const condition = transition.condition ?? "";
+          const action = transition.action ?? "";
+          return `${source}->${target}:${condition}:${action}`;
+        })
+        .sort()
+        .join("|");
+      return `${step.name ?? ""}#${step.level ?? 0}:${actionsPart}:${transitionsPart}`;
+    })
+    .join("||");
+}
+
+function cloneSteps(steps) {
+  return steps.map((step) => ({
+    ...step,
+    actions: Array.isArray(step.actions) ? [...step.actions] : [],
+    transitions: Array.isArray(step.transitions)
+      ? step.transitions.map((transition) => ({ ...transition }))
+      : [],
+  }));
+}
+
+
+function buildLoopPoints(startX, startY, targetX, targetY) {
+  const marginX = stage ? stage.width() - 40 : startX + 150;
+  const midY = Math.max(20, Math.min(targetY - 20, startY - 20));
+  return [
+    startX,
+    startY,
+    startX,
+    startY + 30,
+    marginX,
+    startY + 30,
+    marginX,
+    midY,
+    targetX,
+    midY,
+    targetX,
+    targetY,
+  ];
+}
+
+function createBranchOffsets(count) {
+  if (count <= 1) {
+    return [0];
+  }
+  const spacing = 24;
+  const offsets = [];
+  const center = (count - 1) / 2;
+  for (let i = 0; i < count; i += 1) {
+    offsets.push((i - center) * spacing);
+  }
+  return offsets;
 }

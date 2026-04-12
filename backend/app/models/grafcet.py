@@ -7,6 +7,7 @@ class Transition:
     source: str
     target: str
     condition: str
+    action: str = ""
 
 
 @dataclass
