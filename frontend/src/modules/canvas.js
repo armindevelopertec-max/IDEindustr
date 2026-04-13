@@ -726,7 +726,8 @@ function cloneSteps(steps) {
 
 
 function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
-  const marginX = stage ? stage.width() - 40 : startX + 150;
+  const marginXBase = stage ? stage.width() - 40 : startX + 150;
+  const marginX = marginXBase + loopOffset * 2;
   const midY = Math.max(20, Math.min(targetY - 20, startY - 20));
   return [
     startX + loopOffset,
@@ -737,9 +738,9 @@ function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
     startY + 30,
     marginX,
     midY,
-    targetX,
+    targetX + loopOffset,
     midY,
-    targetX,
+    targetX + loopOffset,
     targetY,
   ];
 }
