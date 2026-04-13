@@ -536,7 +536,18 @@ function drawGrafcetSteps() {
         strokeWidth: 1,
         cornerRadius: 8,
       });
-      layer.add(actionPanelRect);
+      
+      // LÍNEA DE UNIÓN ESTADO <-> ACCIÓN
+      const connectingLine = new Konva.Line({
+        points: [
+          pos.x + stateWidth, pos.y + pos.height / 2, // Salida: Centro derecha del estado
+          actionPanelX, pos.y + pos.height / 2       // Entrada: Centro izquierda del panel
+        ],
+        stroke: "#ffffff44",
+        strokeWidth: 2,
+      });
+
+      layer.add(connectingLine, actionPanelRect);
 
       const actionRows = metrics?.actionRows ?? [];
       const actionRowsHeight = metrics?.panelContentHeight ?? ACTION_BADGE_HEIGHT;
