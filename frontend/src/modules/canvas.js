@@ -656,6 +656,16 @@ function drawGrafcetSteps() {
       const actuatorMatch = (transition.condition ?? "").match(
         /\b(start|stop|sensor|entrada|entrada1|entrada2)\b/i,
       );
+      const labelBg = shouldLoop
+        ? new Konva.Rect({
+            x: labelX - 4,
+            y: labelY - 2,
+            width: Math.max(measureTextWidth(transition.condition), 48),
+            height: 16,
+            fill: `${loopColor}33`,
+            cornerRadius: 4,
+          })
+        : null;
       const label = new Konva.Text({
         x: labelX,
         y: labelY,
@@ -663,6 +673,9 @@ function drawGrafcetSteps() {
         fontSize: 12,
         fill: shouldLoop ? loopColor : "#f5faff",
       });
+      if (labelBg) {
+        layer.add(labelBg);
+      }
 
       label.on("dblclick", () => {
         const value = window.prompt("Condición", transition.condition);
