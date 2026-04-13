@@ -619,12 +619,15 @@ function drawGrafcetSteps() {
             finalTargetEntryY,
           ];
 
+      const loopColor = shouldLoop
+        ? getLoopColor(transition.source)
+        : "#ffffff";
       const arrow = new Konva.Arrow({
         points,
         pointerLength: 10,
         pointerWidth: 10,
-        stroke: "#ffffff",
-        fill: "#ffffff",
+        stroke: loopColor,
+        fill: loopColor,
         strokeWidth: 2,
         tension: 0,
       });
@@ -727,7 +730,7 @@ function cloneSteps(steps) {
 
 function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
   const marginXBase = stage ? stage.width() - 40 : startX + 150;
-  const marginX = marginXBase + loopOffset * 2;
+  const marginX = marginXBase + loopOffset * 15;
   const midY = Math.max(20, Math.min(targetY - 20, startY - 20));
   return [
     startX + loopOffset,
@@ -743,4 +746,17 @@ function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
     targetX + loopOffset,
     targetY,
   ];
+}
+
+const loopColorCache = new Map();
+function getLoopColor(stateId) {
+  if (!stateId) return "#ffffff";
+  if (loopColorCache.has(stateId)) {
+    return loopColorCache.get(stateId);
+  }
+  const base = [...stateId].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  const hue = (base * 43) % 360;
+  const color = `hsl(${hue}, 70%, 60%)`;
+  loopColorCache.set(stateId, color);
+  return color;
 }
