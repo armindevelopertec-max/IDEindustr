@@ -253,19 +253,25 @@ function drawGrafcetSteps() {
     adjacency.set(step.name, []);
     const stateWidth = Math.max(measureStateWidth(step.name ?? ""), NODE_WIDTH);
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const maxActionTextWidth = actions.reduce((max, action) => {
-      const width = measureTextWidth(action, ACTION_FONT_SIZE);
-      return Math.max(max, width);
-    }, 0);
+    const actionWidths = actions.map((action) => {
+      const textWidth = measureTextWidth(action, ACTION_FONT_SIZE);
+      return Math.max(
+        textWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2,
+        ACTION_BADGE_MIN_WIDTH,
+      );
+    });
+    const totalActionWidth = actionWidths.reduce((sum, width) => sum + width, 0);
+    const spacingWidth = Math.max(0, actionWidths.length - 1) * ACTION_BADGE_SPACING;
     const actionPanelWidth = Math.max(
       ACTION_PANEL_MIN_WIDTH,
-      maxActionTextWidth + ACTION_PANEL_PADDING * 2,
+      totalActionWidth + spacingWidth + ACTION_PANEL_PADDING * 2,
     );
     nodeMetrics.set(step.name, {
       stateWidth,
       actionPanelWidth,
-      totalWidth: stateWidth + ACTION_GAP + actionPanelWidth,
+      actionWidths,
       height: NODE_BODY_HEIGHT,
+      totalWidth: stateWidth + ACTION_GAP + actionPanelWidth,
     });
   });
 
@@ -462,26 +468,15 @@ function drawGrafcetSteps() {
     });
 
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionListStartY = pos.y + ACTION_PANEL_PADDING;
+    const actionListY = pos.y + (pos.height - ACTION_BADGE_HEIGHT) / 2;
+    let actionCursorX = actionPanelX + ACTION_PANEL_PADDING;
+    const actionWidths = metrics?.actionWidths ?? [];
     actions.forEach((action, actionIdx) => {
-      const actionY =
-        actionListStartY + actionIdx * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
-      const panelInnerWidth = Math.max(
-        actionPanelWidth - ACTION_PANEL_PADDING * 2,
-        ACTION_BADGE_MIN_WIDTH,
-      );
-      const targetTextWidth = Math.min(
-        measureTextWidth(action, ACTION_FONT_SIZE),
-        panelInnerWidth - ACTION_BADGE_HORIZONTAL_PADDING * 2,
-      );
-      const actionRectWidth = Math.max(
-        Math.min(targetTextWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2, panelInnerWidth),
-        ACTION_BADGE_MIN_WIDTH,
-      );
+      const rectWidth = actionWidths[actionIdx] ?? ACTION_BADGE_MIN_WIDTH;
       const actionRect = new Konva.Rect({
-        x: actionPanelX + ACTION_PANEL_PADDING,
-        y: actionY,
-        width: actionRectWidth,
+        x: actionCursorX,
+        y: actionListY,
+        width: rectWidth,
         height: ACTION_BADGE_HEIGHT,
         fill: ACTION_ITEM_FILL,
         stroke: ACTION_ITEM_STROKE,
@@ -498,13 +493,14 @@ function drawGrafcetSteps() {
         align: "left",
       });
       layer.add(actionRect, actionLabel);
+      actionCursorX += rectWidth + ACTION_BADGE_SPACING;
     });
 
     let actionHint;
     if (!actions.length) {
       actionHint = new Konva.Text({
         x: actionPanelX + ACTION_PANEL_PADDING,
-        y: actionListStartY,
+        y: actionListY,
         text: "doble clic → agregar acción",
         fontSize: 10,
         fill: "#9bb2d9",
