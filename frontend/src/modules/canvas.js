@@ -596,10 +596,14 @@ function drawGrafcetSteps() {
         : (horizontalY + finalTargetEntryY) / 2;
 
       const loopOffset = loopOffsetsBySource.get(transition) ?? 0;
-      const arrowStartX = startX + horizontalOffset + (shouldLoop ? loopOffset : 0);
+      const loopDirection = Math.sign(targetCenterX - startX) || 1;
+      const loopLeadingOffset = shouldLoop ? loopDirection * 6 : 0;
+      const arrowStartX =
+        startX + horizontalOffset + (shouldLoop ? loopOffset + loopLeadingOffset : 0);
       const arrowStartY = startY;
       const horizontalEntryX =
-        targetCenterX + (shouldLoop ? loopOffset * 0.5 : 0);
+        targetCenterX +
+        (shouldLoop ? loopOffset * 0.5 + loopLeadingOffset * 0.5 : 0);
       const points = shouldLoop
         ? buildLoopPoints(
             arrowStartX,
