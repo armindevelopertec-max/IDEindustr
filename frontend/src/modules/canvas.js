@@ -801,18 +801,21 @@ function drawGrafcetSteps() {
         y: currentY,
         width: entry.width + 8,
         height: 18,
-        fill: `${entry.color}55`,
+        fill: "rgba(5, 12, 25, 0.95)",
         cornerRadius: 4,
+        stroke: "#ffffff88",
+        strokeWidth: 1,
       });
       const text = new Konva.Text({
         x: baseX + 4,
-        y: currentY + 1,
+        y: currentY + 3,
         text: entry.text,
-        fontSize: 12,
+        fontSize: 11,
+        fontStyle: "bold",
         fill: entry.color,
       });
       layer.add(rect, text);
-      currentY += 20;
+      currentY += 22;
     });
   });
 

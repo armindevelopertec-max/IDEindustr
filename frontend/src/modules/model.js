@@ -136,22 +136,6 @@ export function parseCnlText(text = "") {
         }
       });
     }
-
-    if (source !== "S0" && sourceState.number !== null && targetState.number !== null) {
-      const diff = targetState.number - sourceState.number;
-      if (diff > 1) {
-        const missingLevels = [];
-        for (let lvl = sourceState.number + 1; lvl < targetState.number; lvl += 1) {
-          if (!definedLevelNumbers.has(lvl)) {
-            missingLevels.push(lvl);
-          }
-        }
-        if (missingLevels.length) {
-          const message = `Salto inconsistente detectado entre ${source} y ${target}. Faltan estados en niveles ${missingLevels.join(", ")}.`;
-          pushStateError(sourceState, message, errors, index + 1);
-        }
-      }
-    }
   });
 
   if (!stateMap.has("S0")) {
@@ -187,22 +171,6 @@ export function parseCnlText(text = "") {
       pushStateError(state, "No tiene transiciones de entrada.", errors);
     }
   });
-
-  const sortedStateNumbers = [...new Set(
-    [...stateMap.values()]
-      .map((state) => (state.number !== null ? state.number : -1))
-      .filter((num) => num >= 0),
-  )].sort((a, b) => a - b);
-
-  for (let i = 1; i < sortedStateNumbers.length; i += 1) {
-    const diff = sortedStateNumbers[i] - sortedStateNumbers[i - 1];
-    if (diff > 1) {
-      errors.push({
-        line: null,
-        message: `Falta declarar etapas intermedias entre S${sortedStateNumbers[i - 1]} y S${sortedStateNumbers[i]}.`,
-      });
-    }
-  }
 
   // 1. Asignar niveles topológicos (basados en el flujo real)
   const logicalLevels = new Map();
