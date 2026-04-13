@@ -463,17 +463,17 @@ function drawGrafcetSteps() {
       });
     }
 
-    rect.on("mouseover", () => {
+    stateRect.on("mouseover", () => {
       stage.container().style.cursor = "grab";
     });
-    rect.on("mouseout", () => {
+    stateRect.on("mouseout", () => {
       stage.container().style.cursor = "default";
     });
-    rect.on("dragend", () => {
-      step.position = { x: rect.x(), y: rect.y() };
+    stateRect.on("dragend", () => {
+      step.position = { x: stateRect.x(), y: stateRect.y() };
       drawGrafcetSteps();
     });
-    rect.on("dblclick", () => {
+    stateRect.on("dblclick", () => {
       const input = window.prompt("Nivel del paso", String(step.level));
       if (input === null) return;
       const parsed = parseInt(input, 10);
