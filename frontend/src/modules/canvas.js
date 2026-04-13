@@ -542,6 +542,26 @@ function drawGrafcetSteps() {
   });
 
   const stepLookup = new Map(canvasState.steps.map((step) => [step.name, step]));
+  const loopOffsetsBySource = new Map();
+
+  canvasState.steps.forEach((step) => {
+    const sourceLevel = Number.isFinite(step.level) ? step.level : 0;
+    const loops = [];
+    (step.transitions ?? []).forEach((transition) => {
+      const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
+        ? stepLookup.get(transition.target)?.level
+        : 0;
+      if (targetLevel <= sourceLevel) {
+        loops.push(transition);
+      }
+    });
+    if (loops.length <= 1) return;
+    const spacing = 12;
+    loops.forEach((transition, index) => {
+      const offset = (index - (loops.length - 1) / 2) * spacing;
+      loopOffsetsBySource.set(transition, offset);
+    });
+  });
 
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
@@ -575,9 +595,11 @@ function drawGrafcetSteps() {
         ? startY + Math.min(20, Math.max(12, entryMargin * 4))
         : (horizontalY + finalTargetEntryY) / 2;
 
-      const arrowStartX = startX + horizontalOffset;
+      const loopOffset = loopOffsetsBySource.get(transition) ?? 0;
+      const arrowStartX = startX + horizontalOffset + (shouldLoop ? loopOffset : 0);
       const arrowStartY = startY;
-      const horizontalEntryX = targetCenterX;
+      const horizontalEntryX =
+        targetCenterX + (shouldLoop ? loopOffset * 0.5 : 0);
       const points = shouldLoop
         ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY)
         : [
