@@ -556,7 +556,7 @@ function drawGrafcetSteps() {
       }
     });
     if (!loops.length) return;
-    const spacing = 18;
+    const spacing = 32;
     const verticalSpacing = 6;
     loops.forEach((transition, index) => {
       const offset = (index - (loops.length - 1) / 2) * spacing;
