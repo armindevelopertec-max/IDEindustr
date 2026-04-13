@@ -601,7 +601,10 @@ function drawGrafcetSteps() {
         tension: 0,
       });
 
-      const labelX = arrowStartX - 24;
+      const loopLabelOffset = shouldLoop
+        ? Math.sign(targetCenterX - arrowStartX) * -8
+        : 0;
+      const labelX = arrowStartX - 24 + loopLabelOffset;
       const labelY = verticalMidY - 8;
       const actuatorMatch = (transition.condition ?? "").match(
         /\b(start|stop|sensor|entrada|entrada1|entrada2)\b/i,
