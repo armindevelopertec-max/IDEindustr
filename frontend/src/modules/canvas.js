@@ -7,7 +7,6 @@ const LEVEL_VERTICAL_GAP = 70;
 const HORIZONTAL_GAP = 80;
 const ACTION_GAP = 24;
 const NODE_BODY_HEIGHT = NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2;
-const ACTION_PANEL_WIDTH = 130;
 const ACTION_PANEL_PADDING = 12;
 const ACTION_PANEL_FILL = "rgba(255, 255, 255, 0.05)";
 const ACTION_PANEL_STROKE = "rgba(255, 255, 255, 0.2)";
@@ -16,9 +15,22 @@ const ACTION_ITEM_STROKE = "rgba(0,0,0,0.1)";
 const ACTION_ITEM_TEXT = "#2d1f0b";
 const ACTION_BADGE_HEIGHT = 26;
 const ACTION_BADGE_SPACING = 8;
+const ACTION_BADGE_HORIZONTAL_PADDING = 10;
+const ACTION_PANEL_MIN_WIDTH = 90;
+const ACTION_BADGE_MIN_WIDTH = 60;
+const ACTION_FONT_SIZE = 11;
 const STATE_PADDING_HORIZONTAL = 14;
 const STATE_MIN_WIDTH = 100;
-const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_WIDTH + ACTION_GAP;
+const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_MIN_WIDTH + ACTION_GAP;
+
+function measureTextWidth(text, fontSize = ACTION_FONT_SIZE, fontStyle = "normal") {
+  const helper = new Konva.Text({
+    text,
+    fontSize,
+    fontStyle,
+  });
+  return helper.getTextWidth();
+}
 
 function measureStateWidth(label) {
   const text = new Konva.Text({
@@ -240,9 +252,19 @@ function drawGrafcetSteps() {
   canvasState.steps.forEach((step) => {
     adjacency.set(step.name, []);
     const stateWidth = Math.max(measureStateWidth(step.name ?? ""), NODE_WIDTH);
+    const actions = Array.isArray(step.actions) ? step.actions : [];
+    const maxActionTextWidth = actions.reduce((max, action) => {
+      const width = measureTextWidth(action, ACTION_FONT_SIZE);
+      return Math.max(max, width);
+    }, 0);
+    const actionPanelWidth = Math.max(
+      ACTION_PANEL_MIN_WIDTH,
+      maxActionTextWidth + ACTION_PANEL_PADDING * 2,
+    );
     nodeMetrics.set(step.name, {
       stateWidth,
-      totalWidth: stateWidth + ACTION_GAP + ACTION_PANEL_WIDTH,
+      actionPanelWidth,
+      totalWidth: stateWidth + ACTION_GAP + actionPanelWidth,
       height: NODE_BODY_HEIGHT,
     });
   });
@@ -426,10 +448,12 @@ function drawGrafcetSteps() {
     label.y(centeredY);
 
 
+    const metrics = nodeMetrics.get(step.name);
+    const actionPanelWidth = metrics?.actionPanelWidth ?? ACTION_PANEL_MIN_WIDTH;
     const actionPanelRect = new Konva.Rect({
       x: actionPanelX,
       y: pos.y,
-      width: ACTION_PANEL_WIDTH,
+      width: actionPanelWidth,
       height: pos.height,
       fill: ACTION_PANEL_FILL,
       stroke: ACTION_PANEL_STROKE,
@@ -442,10 +466,22 @@ function drawGrafcetSteps() {
     actions.forEach((action, actionIdx) => {
       const actionY =
         actionListStartY + actionIdx * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
+      const panelInnerWidth = Math.max(
+        actionPanelWidth - ACTION_PANEL_PADDING * 2,
+        ACTION_BADGE_MIN_WIDTH,
+      );
+      const targetTextWidth = Math.min(
+        measureTextWidth(action, ACTION_FONT_SIZE),
+        panelInnerWidth - ACTION_BADGE_HORIZONTAL_PADDING * 2,
+      );
+      const actionRectWidth = Math.max(
+        Math.min(targetTextWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2, panelInnerWidth),
+        ACTION_BADGE_MIN_WIDTH,
+      );
       const actionRect = new Konva.Rect({
         x: actionPanelX + ACTION_PANEL_PADDING,
         y: actionY,
-        width: ACTION_PANEL_WIDTH - ACTION_PANEL_PADDING * 2,
+        width: actionRectWidth,
         height: ACTION_BADGE_HEIGHT,
         fill: ACTION_ITEM_FILL,
         stroke: ACTION_ITEM_STROKE,
@@ -453,12 +489,12 @@ function drawGrafcetSteps() {
         cornerRadius: 4,
       });
       const actionLabel = new Konva.Text({
-        x: actionRect.x() + 6,
+        x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
         y: actionRect.y() + 4,
         text: action,
-        fontSize: 11,
+        fontSize: ACTION_FONT_SIZE,
         fill: ACTION_ITEM_TEXT,
-        width: actionRect.width() - 10,
+        width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
         align: "left",
       });
       layer.add(actionRect, actionLabel);
