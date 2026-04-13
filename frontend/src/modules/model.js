@@ -204,8 +204,43 @@ export function parseCnlText(text = "") {
     }
   }
 
+  // 1. Asignar niveles topológicos (basados en el flujo real)
+  const logicalLevels = new Map();
+  logicalLevels.set("S0", 0);
+  const queue = ["S0"];
+  const visited = new Set(["S0"]);
+
+  while (queue.length) {
+    const currentId = queue.shift();
+    const currentLevel = logicalLevels.get(currentId);
+    const state = stateMap.get(currentId);
+    if (!state) continue;
+
+    state.outgoing.forEach((trans) => {
+      // Un estado de destino debe estar al menos 1 nivel por debajo del origen
+      const targetId = trans.to;
+      const targetState = stateMap.get(targetId);
+      if (!targetState) return;
+
+      const currentTargetLevel = logicalLevels.get(targetId) ?? -1;
+      
+      // Solo actualizamos si el nuevo nivel es mayor (así manejamos convergencias)
+      // Pero evitamos bucles infinitos en el cálculo: si es un bucle real de lógica,
+      // no aumentamos el nivel.
+      if (targetState.number > (state.number ?? 0)) {
+        if (currentLevel + 1 > currentTargetLevel) {
+          logicalLevels.set(targetId, currentLevel + 1);
+          if (!visited.has(targetId)) {
+            visited.add(targetId);
+            queue.push(targetId);
+          }
+        }
+      }
+    });
+  }
+
   const steps = [...stateMap.values()]
-    .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
+    .sort((a, b) => (logicalLevels.get(a.id) ?? 0) - (logicalLevels.get(b.id) ?? 0))
     .map((state) => {
       const step = {
         name: state.id,
@@ -215,7 +250,7 @@ export function parseCnlText(text = "") {
           target: transition.to,
           condition: transition.condition,
         })),
-        level: state.number ?? 0,
+        level: logicalLevels.get(state.id) ?? 0,
         active: state.id === "S0",
         error: state.errorMessages.length > 0,
       };

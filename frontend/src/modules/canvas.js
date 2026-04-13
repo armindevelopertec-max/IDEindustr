@@ -625,13 +625,14 @@ function drawGrafcetSteps() {
     });
   });
 
+  // Recopilar etiquetas para dibujarlas al final (siempre al frente)
+  const normalLabels = [];
+
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
       const source = positions[transition.source];
       const target = positions[transition.target];
       if (!source || !target) return;
-
-      const horizontalOffset = 0;
 
       const sourceStateWidth = source.stateWidth ?? NODE_WIDTH;
       const startX = source.x + sourceStateWidth / 2;
@@ -642,14 +643,16 @@ function drawGrafcetSteps() {
       const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
         ? stepLookup.get(transition.target)?.level
         : 0;
-      const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
+      const sourceLevel = Number.isFinite(step.level) ? step.level : 0;
+      const shouldLoop = targetLevel <= sourceLevel;
+
       const isAscending = targetEntryY < startY;
       const directRise = startY + (isAscending ? 10 : 18);
       const loopBias = loopOffsetsBySource.get(transition) ?? {
         offset: 0,
         verticalOffset: 0,
       };
-      
+
       const horizontalY = transition.manualY !== null 
         ? transition.manualY 
         : (shouldLoop 
@@ -658,41 +661,24 @@ function drawGrafcetSteps() {
 
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
-      const finalTargetEntryY =
-        targetEntryY - entryMargin;
+      const finalTargetEntryY = targetEntryY - entryMargin;
 
       const loopDirection = Math.sign(targetCenterX - startX) || 1;
       const loopLeadingOffset = shouldLoop ? loopDirection * 6 : 0;
-      const arrowStartX =
-        startX +
-        horizontalOffset +
-        (shouldLoop ? loopBias.offset + loopLeadingOffset : 0);
+      const arrowStartX = startX + (shouldLoop ? loopBias.offset + loopLeadingOffset : 0);
       const arrowStartY = startY + (shouldLoop ? loopBias.verticalOffset : 0);
 
       const points = shouldLoop
-        ? buildLoopPoints(
-            arrowStartX,
-            arrowStartY,
-            targetCenterX,
-            finalTargetEntryY,
-            loopBias.offset,
-            transition.manualX
-          )
+        ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX)
         : [
-            arrowStartX,
-            arrowStartY,
-            arrowStartX,
-            horizontalY,
-            targetCenterX,
-            horizontalY,
-            targetCenterX,
-            finalTargetEntryY,
+            arrowStartX, arrowStartY,
+            arrowStartX, horizontalY,
+            targetCenterX, horizontalY,
+            targetCenterX, finalTargetEntryY,
           ];
 
-      const loopColor = shouldLoop
-        ? getStateColor(transition.target)
-        : "#ffffff";
-      
+      const loopColor = shouldLoop ? getStateColor(transition.target) : "#ffffff";
+
       const arrow = new Konva.Arrow({
         points,
         pointerLength: 10,
@@ -706,12 +692,12 @@ function drawGrafcetSteps() {
 
       // Handle para estirar la línea
       const handle = new Konva.Circle({
-        radius: 6,
+        radius: 5,
         fill: loopColor,
         draggable: true,
         stroke: "white",
         strokeWidth: 1,
-        opacity: 0.6,
+        opacity: 0.4,
       });
 
       if (shouldLoop) {
@@ -719,38 +705,21 @@ function drawGrafcetSteps() {
         const mX = transition.manualX !== null 
           ? transition.manualX 
           : Math.max(arrowStartX, targetCenterX) + hClearance + loopBias.offset * 20;
-        
-        handle.position({
-          x: mX,
-          y: (arrowStartY + finalTargetEntryY) / 2
-        });
 
+        handle.position({ x: mX, y: (arrowStartY + finalTargetEntryY) / 2 });
         handle.on("dragmove", () => {
           transition.manualX = handle.x();
-          const newPoints = buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX);
-          arrow.points(newPoints);
+          arrow.points(buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX));
         });
       } else {
-        handle.position({
-          x: targetCenterX,
-          y: horizontalY
-        });
-
+        handle.position({ x: targetCenterX, y: horizontalY });
         handle.on("dragmove", () => {
           transition.manualY = handle.y();
-          const newPoints = [
-            arrowStartX, arrowStartY,
-            arrowStartX, transition.manualY,
-            targetCenterX, transition.manualY,
-            targetCenterX, finalTargetEntryY
-          ];
-          arrow.points(newPoints);
+          arrow.points([arrowStartX, arrowStartY, arrowStartX, transition.manualY, targetCenterX, transition.manualY, targetCenterX, finalTargetEntryY]);
         });
       }
 
-      handle.on("dragend", () => {
-        drawGrafcetSteps();
-      });
+      handle.on("dragend", () => drawGrafcetSteps());
 
       if (shouldLoop) {
         const labelText = transition.condition ?? "AUTO";
@@ -758,47 +727,71 @@ function drawGrafcetSteps() {
         const bucket = loopLabelBuckets.get(transition.source) ?? [];
         bucket.push({ text: labelText, color: loopColor, width });
         loopLabelBuckets.set(transition.source, bucket);
+      } else {
+        // Guardar etiqueta normal para dibujarla después de todas las flechas
+        normalLabels.push({
+          targetId: transition.target,
+          text: transition.condition ?? "AUTO",
+          x: targetCenterX,
+          y: finalTargetEntryY - 14, // Un poco más arriba de la punta
+          originalTransition: transition
+        });
       }
-      
-      const tipX = targetCenterX;
-      const tipY = finalTargetEntryY;
-      if (!shouldLoop) {
-        const textValue = transition.condition ?? "AUTO";
-        const width = Math.max(measureTextWidth(textValue), 48);
-        const labelBg = new Konva.Rect({
-          x: tipX - width / 2 - 4,
-          y: tipY - 24,
-          width: width + 8,
-          height: 18,
-          fill: "rgba(5, 12, 25, 0.95)",
-          cornerRadius: 4,
-          stroke: "#ffffff22",
-          strokeWidth: 1,
-        });
-        const label = new Konva.Text({
-          x: tipX - width / 2,
-          y: tipY - 22,
-          text: textValue,
-          fontSize: 11,
-          fontStyle: "bold",
-          fill: "#f5faff",
-          width: width,
-          align: "center",
-        });
-        label.on("dblclick", () => {
-          const value = window.prompt("Condición", transition.condition);
-          if (value === null) return;
-          transition.condition = value;
-          drawGrafcetSteps();
-        });
-        layer.add(labelBg, label);
-      }
+
       layer.add(arrow, handle);
     });
   });
 
-  loopLabelBuckets.forEach((labels, sourceId) => {
-    const parentPos = positions[sourceId];
+  // Dibujar etiquetas normales con gestión de convergencia
+  const convergenceGroups = new Map();
+  normalLabels.forEach(label => {
+    if (!convergenceGroups.has(label.targetId)) convergenceGroups.set(label.targetId, []);
+    convergenceGroups.get(label.targetId).push(label);
+  });
+
+  convergenceGroups.forEach((labels, targetId) => {
+    const total = labels.length;
+    const spacing = 60; // Espacio entre etiquetas convergentes
+    labels.forEach((label, idx) => {
+      const offset = (idx - (total - 1) / 2) * spacing;
+      const textValue = label.text;
+      const width = Math.max(measureTextWidth(textValue), 48);
+
+      const labelBg = new Konva.Rect({
+        x: label.x + offset - width / 2 - 4,
+        y: label.y - 12,
+        width: width + 8,
+        height: 18,
+        fill: "rgba(5, 12, 25, 0.95)",
+        cornerRadius: 4,
+        stroke: "#ffffff44",
+        strokeWidth: 1.5,
+      });
+
+      const labelText = new Konva.Text({
+        x: label.x + offset - width / 2,
+        y: label.y - 10,
+        text: textValue,
+        fontSize: 11,
+        fontStyle: "bold",
+        fill: "#f5faff",
+        width: width,
+        align: "center",
+      });
+
+      labelText.on("dblclick", () => {
+        const value = window.prompt("Condición", label.originalTransition.condition);
+        if (value !== null) {
+          label.originalTransition.condition = value;
+          drawGrafcetSteps();
+        }
+      });
+
+      layer.add(labelBg, labelText);
+    });
+  });
+
+  loopLabelBuckets.forEach((labels, sourceId) => {    const parentPos = positions[sourceId];
     if (!parentPos) return;
     const baseX = parentPos.x + parentPos.stateWidth + 10;
     let currentY = parentPos.y + parentPos.height / 2;
