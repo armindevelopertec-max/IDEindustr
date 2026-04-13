@@ -548,46 +548,6 @@ function drawGrafcetSteps() {
     if (count > 0) transitionsPerSource.set(stepItem.name, count);
   });
   const transitionCounter = {};
-  const directionOffsets = new Map();
-  const directionSpacing = 8;
-
-  canvasState.steps.forEach((step) => {
-    const parentPos = positions[step.name];
-    if (!parentPos) return;
-    const transitions = step.transitions ?? [];
-    if (!transitions.length) return;
-    const startX = parentPos.x + (parentPos.stateWidth ?? NODE_WIDTH) / 2;
-    const leftGroup = [];
-    const rightGroup = [];
-    transitions.forEach((transition) => {
-      const targetPos = positions[transition.target];
-      if (!targetPos) return;
-      const targetCenter = targetPos.x + (targetPos.stateWidth ?? NODE_WIDTH) / 2;
-      if (targetCenter < startX) {
-        leftGroup.push(transition);
-      } else {
-        rightGroup.push(transition);
-      }
-    });
-    const assignOffsets = (group, sign) => {
-      group.forEach((transition, index) => {
-        const targetPos = positions[transition.target];
-        if (!targetPos) return;
-        const targetCenter = targetPos.x + (targetPos.stateWidth ?? NODE_WIDTH) / 2;
-        const deltaX = Math.abs(targetCenter - startX);
-        const horizontalBias =
-          transitions.length === 1 ? 0 : sign * (index + 1) * directionSpacing;
-        const verticalBias = Math.min(2 + index * 0.5, 4);
-        directionOffsets.set(transition, {
-          horizontal: horizontalBias,
-          vertical: verticalBias,
-          deltaX,
-        });
-      });
-    };
-    assignOffsets(leftGroup, -1);
-    assignOffsets(rightGroup, 1);
-  });
 
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
@@ -606,27 +566,15 @@ function drawGrafcetSteps() {
       const targetStateWidth = target.stateWidth ?? NODE_WIDTH;
       const targetCenterX = target.x + targetStateWidth / 2;
       const targetEntryY = target.y;
-      const branchBias = directionOffsets.get(transition) ?? {
-        horizontal: 0,
-        vertical: 0,
-        deltaX: 0,
-      };
-      const deltaScale = branchBias.deltaX
-        ? Math.min(0.3, branchBias.deltaX / 250)
-        : 0;
-      const scaledHorizontal =
-        (branchBias.horizontal ?? 0) * (transitionsPerSource.get(step.name) === 1 ? 0 : deltaScale);
-      const verticalBias = Math.min(Math.max(branchBias.vertical ?? 0, 0), 16) * (0.5 + deltaScale * 0.5);
       const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
         ? stepLookup.get(transition.target)?.level
         : 0;
       const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
-      const branchVertical = branchBias.vertical ?? 0;
       const isAscending = targetEntryY < startY;
       const directRise = startY + (isAscending ? 10 : 18);
       const horizontalY = shouldLoop
-        ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + verticalBias + branchVertical
-        : directRise + branchVertical;
+        ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2)
+        : directRise;
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
       const finalTargetEntryY =
@@ -636,13 +584,9 @@ function drawGrafcetSteps() {
         ? startY + Math.min(20, Math.max(12, entryMargin * 4))
         : (horizontalY + finalTargetEntryY) / 2;
 
-      const branchHorizontal = branchBias.horizontal ?? 0;
       const arrowStartX = startX + horizontalOffset;
       const arrowStartY = startY;
-      const entryNudge = branchHorizontal
-        ? Math.sign(branchHorizontal) * 10
-        : 0;
-      const horizontalEntryX = targetCenterX + scaledHorizontal + entryNudge;
+      const horizontalEntryX = targetCenterX;
       const points = shouldLoop
         ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY)
         : [
