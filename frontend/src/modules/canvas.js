@@ -543,6 +543,7 @@ function drawGrafcetSteps() {
 
   const stepLookup = new Map(canvasState.steps.map((step) => [step.name, step]));
   const loopOffsetsBySource = new Map();
+  const loopLabelBuckets = new Map();
 
   canvasState.steps.forEach((step) => {
     const sourceLevel = Number.isFinite(step.level) ? step.level : 0;
@@ -638,6 +639,13 @@ function drawGrafcetSteps() {
       const loopColor = shouldLoop
         ? getStateColor(transition.target)
         : "#ffffff";
+      if (shouldLoop) {
+        const labelText = transition.condition ?? "AUTO";
+        const width = Math.max(measureTextWidth(labelText), 40);
+        const bucket = loopLabelBuckets.get(transition.source) ?? [];
+        bucket.push({ text: labelText, color: loopColor, width });
+        loopLabelBuckets.set(transition.source, bucket);
+      }
       const arrow = new Konva.Arrow({
         points,
         pointerLength: 10,
@@ -648,41 +656,27 @@ function drawGrafcetSteps() {
         tension: 0,
       });
 
-      const loopLabelOffset = shouldLoop
-        ? Math.sign(targetCenterX - arrowStartX) * -8
-        : 0;
-      const labelX = arrowStartX - 24 + loopLabelOffset;
-      const labelY = verticalMidY - 8;
       const actuatorMatch = (transition.condition ?? "").match(
         /\b(start|stop|sensor|entrada|entrada1|entrada2)\b/i,
       );
-      const labelBg = shouldLoop
-        ? new Konva.Rect({
-            x: labelX - 4,
-            y: labelY - 2,
-            width: Math.max(measureTextWidth(transition.condition), 48),
-            height: 16,
-            fill: `${loopColor}33`,
-            cornerRadius: 4,
-          })
-        : null;
-      const label = new Konva.Text({
-        x: labelX,
-        y: labelY,
-        text: actuatorMatch ? "" : transition.condition,
-        fontSize: 12,
-        fill: shouldLoop ? loopColor : "#f5faff",
-      });
-      if (labelBg) {
-        layer.add(labelBg);
+      const labelX = arrowStartX - 24;
+      const labelY = verticalMidY - 8;
+      let transitionLabel = null;
+      if (!shouldLoop) {
+        transitionLabel = new Konva.Text({
+          x: labelX,
+          y: labelY,
+          text: actuatorMatch ? "" : transition.condition,
+          fontSize: 12,
+          fill: "#f5faff",
+        });
+        transitionLabel.on("dblclick", () => {
+          const value = window.prompt("Condición", transition.condition);
+          if (value === null) return;
+          transition.condition = value;
+          drawGrafcetSteps();
+        });
       }
-
-      label.on("dblclick", () => {
-        const value = window.prompt("Condición", transition.condition);
-        if (value === null) return;
-        transition.condition = value;
-        drawGrafcetSteps();
-      });
 
       if (actuatorMatch) {
         const actuatorLineLength = 18;
@@ -706,7 +700,36 @@ function drawGrafcetSteps() {
         layer.add(actuatorLine, actuatorLabel);
       }
 
-      layer.add(arrow, label);
+      layer.add(arrow);
+      if (transitionLabel) {
+        layer.add(transitionLabel);
+      }
+    });
+  });
+
+  loopLabelBuckets.forEach((labels, sourceId) => {
+    const parentPos = positions[sourceId];
+    if (!parentPos) return;
+    const baseX = parentPos.x + parentPos.stateWidth + 10;
+    let currentY = parentPos.y + parentPos.height / 2;
+    labels.forEach((entry) => {
+      const rect = new Konva.Rect({
+        x: baseX,
+        y: currentY,
+        width: entry.width + 8,
+        height: 18,
+        fill: `${entry.color}55`,
+        cornerRadius: 4,
+      });
+      const text = new Konva.Text({
+        x: baseX + 4,
+        y: currentY + 1,
+        text: entry.text,
+        fontSize: 12,
+        fill: entry.color,
+      });
+      layer.add(rect, text);
+      currentY += 20;
     });
   });
 
