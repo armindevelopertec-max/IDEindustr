@@ -1,40 +1,50 @@
-from typing import Dict, List, Optional
+import re
+from typing import Dict, List
+
+
+class GrafcetSyntaxError(ValueError):
+    """Raised when a DSL line does not follow the official syntax."""
+
+
+_SYNTAX_PATTERN = re.compile(
+    r"^\s*(?P<source>S\d+)\s+(?:THEN\s+(?P<action>.+?)\s+)?NEXT\s+(?P<condition>.+?)\s*->\s*(?P<target>S\d+)\s*$",
+    re.IGNORECASE,
+)
 
 
 def parse_cnl(text: str) -> List[Dict[str, str]]:
-    """Extract WHEN/THEN rules with optional sources and targets."""
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    parsed = []
+    """Parse the new Grafcet DSL: Sx [THEN acción] NEXT condición -> Sy."""
 
-    for line in lines:
-        if "WHEN" not in line or "THEN" not in line:
+    parsed: List[Dict[str, str]] = []
+    errors: List[str] = []
+
+    for index, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.strip()
+        if not line:
             continue
 
-        pre_then, post_then = line.split("THEN", 1)
-        when_parts = pre_then.split("WHEN", 1)
-        before_when = when_parts[0].strip()
-        condition = when_parts[1].strip() if len(when_parts) > 1 else ""
-        source: Optional[str] = None
-        if before_when.upper().startswith("S") and before_when[1:].isdigit():
-            source = before_when.upper()
+        match = _SYNTAX_PATTERN.match(line)
+        if not match:
+            errors.append(f"Línea {index} inválida: '{raw_line}'. Debe seguir 'Sx [THEN acción] NEXT condición -> Sy'.")
+            continue
 
-        action = post_then.strip()
-        target: Optional[str] = None
-        if "->" in action:
-            action_part, target_part = action.split("->", 1)
-            action = action_part.strip()
-            target = target_part.strip()
-
+        condition = (match.group("condition") or "").strip()
         if not condition:
+            errors.append(f"Línea {index}: la condición NEXT no puede estar vacía.")
             continue
+
+        action = (match.group("action") or "").strip()
 
         parsed.append(
             {
-                "source": source,
-                "condition": condition,
+                "source": match.group("source").upper(),
                 "action": action,
-                "target": target,
+                "condition": condition,
+                "target": match.group("target").upper(),
             }
         )
+
+    if errors:
+        raise GrafcetSyntaxError("; ".join(errors))
 
     return parsed

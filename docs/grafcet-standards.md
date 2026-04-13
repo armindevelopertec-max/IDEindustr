@@ -10,6 +10,19 @@
 6. Las transiciones concurrentes deben resolverse en el modelo sin ambigüedad o mediante una prioridad declarada; nunca se rely en el layout visual para decidir.
 7. El layout (prompt o canvas) es solo una representación sincronizada del modelo y no afecta la ejecución real del sistema.
 
+## 3. Sintaxis DSL de Grafcet
+
+1. El texto de entrada se sintoniza al DSL oficial: cada línea describe un paso con estructura `Sx [THEN acción] NEXT condición -> Sy`.
+2. `Sx` identifica el estado actual; `THEN` introduce acciones opcionales; `NEXT` obliga al siguiente bloque condicional y `-> Sy` define el estado destino.
+3. El orden del DSL es cerrado: `THEN` solo puede preceder a `NEXT` y la condición debe estar presente antes de la flecha.
+4. Ejemplos válidos:
+   * `S0 NEXT START -> S1`
+   * `S1 THEN MOTOR NEXT SENSOR -> S2`
+5. Ejemplos inválidos:
+   * `S1 NEXT SENSOR THEN MOTOR -> S2` (THEN después de NEXT)
+   * `S1 MOTOR NEXT SENSOR -> S2` (Falta la palabra clave THEN)
+6. El motor de análisis rechaza líneas que no cumplan la sintaxis oficial y devuelve errores con número de línea para corregir rápidamente.
+
 ## 2. Estilos UI / UX industrial
 
 1. Fondo principal profundo con degradados y gradients sútiles refuerza la estética SCADA.

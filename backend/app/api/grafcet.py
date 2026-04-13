@@ -1,12 +1,12 @@
 from typing import Dict, List
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services import (
     ladder_generator,
     grafcet_engine,
-    parser as cnl_parser,
+    parser as grafcet_parser,
     variable_mapper,
 )
 from app.services.model_serializer import serialize_prompt
@@ -51,7 +51,10 @@ router = APIRouter()
 
 @router.post("/parse", response_model=ParseResponse)
 def parse_text(payload: ParseRequest) -> ParseResponse:
-    pairs = cnl_parser.parse_cnl(payload.text)
+    try:
+        pairs = grafcet_parser.parse_cnl(payload.text)
+    except grafcet_parser.GrafcetSyntaxError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     steps = grafcet_engine.build_grafcet(pairs)
     ladder = ladder_generator.generate_ladder(steps)
     variables = variable_mapper.default_variable_map()

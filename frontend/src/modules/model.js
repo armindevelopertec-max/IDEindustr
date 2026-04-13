@@ -1,6 +1,6 @@
 const STATE_PATTERN = /^S(\d+)$/i;
 const LINE_PATTERN =
-  /^\s*(S\d+)\s*(?:WHEN\s+(.+?)\s+THEN\s+(.+?)\s*)?->\s*(S\d+)\s*$/i;
+  /^\s*(S\d+)\s+(?:THEN\s+(.+?)\s+)?NEXT\s+(.+?)\s*->\s*(S\d+)\s*$/i;
 
 function createState(id) {
   const match = STATE_PATTERN.exec(id.toUpperCase());
@@ -29,7 +29,7 @@ function parseLine(line) {
     return null;
   }
 
-  const [, source, condition, action, target] = match;
+  const [, source, action, condition, target] = match;
   return {
     source: source.toUpperCase(),
     target: target.toUpperCase(),
@@ -60,7 +60,8 @@ export function parseCnlText(text = "") {
     if (!parsed) {
       errors.push({
         line: index + 1,
-        message: "Sintaxis inválida. Usa 'Sx -> Sy' o 'Sx WHEN ... THEN ... -> Sy'.",
+        message:
+          "Sintaxis inválida. Usa 'Sx [THEN acción] NEXT condición -> Sy' (THEN es opcional).",
       });
       return;
     }
@@ -99,15 +100,6 @@ export function parseCnlText(text = "") {
         line: index + 1,
         message: `Identificador de etapa destino inválido: ${target}.`,
       });
-    }
-
-    if (condition && !action) {
-      pushStateError(
-        sourceState,
-        "Cuando usas WHEN debes declarar una acción con THEN.",
-        errors,
-        index + 1,
-      );
     }
 
     const transition = {

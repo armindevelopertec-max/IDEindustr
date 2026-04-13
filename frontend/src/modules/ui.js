@@ -111,7 +111,7 @@ function debounce(fn, delay) {
 }
 
 const HIGHLIGHT_PATTERNS = [
-  { type: "keyword", regex: /\b(WHEN|THEN|AND|NOT)\b/gi },
+  { type: "keyword", regex: /\b(THEN|NEXT|AND|NOT)\b/gi },
   { type: "state", regex: /\bS\d+\b/gi },
   { type: "variable", regex: /\b(START|STOP|SENSOR|MOTOR|CYLINDER)\b/gi },
 ];
