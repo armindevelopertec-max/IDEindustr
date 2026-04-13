@@ -601,7 +601,13 @@ function drawGrafcetSteps() {
       const horizontalEntryX =
         targetCenterX + (shouldLoop ? loopOffset * 0.5 : 0);
       const points = shouldLoop
-        ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY)
+        ? buildLoopPoints(
+            arrowStartX,
+            arrowStartY,
+            targetCenterX,
+            finalTargetEntryY,
+            loopOffset,
+          )
         : [
             arrowStartX,
             arrowStartY,
@@ -719,13 +725,13 @@ function cloneSteps(steps) {
 }
 
 
-function buildLoopPoints(startX, startY, targetX, targetY) {
+function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
   const marginX = stage ? stage.width() - 40 : startX + 150;
   const midY = Math.max(20, Math.min(targetY - 20, startY - 20));
   return [
-    startX,
+    startX + loopOffset,
     startY,
-    startX,
+    startX + loopOffset,
     startY + 30,
     marginX,
     startY + 30,
