@@ -656,54 +656,35 @@ function drawGrafcetSteps() {
         tension: 0,
       });
 
-      const actuatorMatch = (transition.condition ?? "").match(
-        /\b(start|stop|sensor|entrada|entrada1|entrada2)\b/i,
-      );
-      const labelX = arrowStartX - 24;
-      const labelY = verticalMidY - 8;
-      let transitionLabel = null;
+      const tipX = targetCenterX;
+      const tipY = finalTargetEntryY;
       if (!shouldLoop) {
-        transitionLabel = new Konva.Text({
-          x: labelX,
-          y: labelY,
-          text: actuatorMatch ? "" : transition.condition,
+        const textValue = transition.condition ?? "AUTO";
+        const width = Math.max(measureTextWidth(textValue), 48);
+        const labelBg = new Konva.Rect({
+          x: tipX - width / 2 - 4,
+          y: tipY - 18,
+          width,
+          height: 18,
+          fill: "rgba(5, 12, 25, 0.95)",
+          cornerRadius: 4,
+        });
+        const label = new Konva.Text({
+          x: tipX - width / 2,
+          y: tipY - 16,
+          text: textValue,
           fontSize: 12,
           fill: "#f5faff",
         });
-        transitionLabel.on("dblclick", () => {
+        label.on("dblclick", () => {
           const value = window.prompt("Condición", transition.condition);
           if (value === null) return;
           transition.condition = value;
           drawGrafcetSteps();
         });
+        layer.add(labelBg, label);
       }
-
-      if (actuatorMatch) {
-        const actuatorLineLength = 18;
-        const actuatorLine = new Konva.Line({
-          points: [
-            targetCenterX - actuatorLineLength,
-            labelY + 10,
-            targetCenterX,
-            labelY + 10,
-          ],
-          stroke: "#f5d76d",
-          strokeWidth: 2,
-        });
-        const actuatorLabel = new Konva.Text({
-          x: targetCenterX + 8,
-          y: labelY - 8,
-          text: actuatorMatch[0].toUpperCase(),
-          fontSize: 10,
-          fill: "#f5d76d",
-        });
-        layer.add(actuatorLine, actuatorLabel);
-      }
-
       layer.add(arrow);
-      if (transitionLabel) {
-        layer.add(transitionLabel);
-      }
     });
   });
 
