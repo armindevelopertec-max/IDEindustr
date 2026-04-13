@@ -585,7 +585,7 @@ function drawGrafcetSteps() {
         targetEntryY - entryMargin;
 
       const verticalMidY = shouldLoop
-        ? (startY + finalTargetEntryY) / 2
+        ? startY + Math.min(20, Math.max(12, entryMargin * 4))
         : (horizontalY + finalTargetEntryY) / 2;
 
       const points = shouldLoop
