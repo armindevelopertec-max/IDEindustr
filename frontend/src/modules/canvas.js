@@ -498,22 +498,22 @@ function drawGrafcetSteps() {
     });
   });
 
-    let actionHint;
-    if (!actions.length) {
-      actionHint = new Konva.Text({
-        x: actionPanelX + ACTION_PANEL_PADDING,
-        y: actionListTop,
-        text: "doble clic → agregar acción",
-        fontSize: 10,
-        fill: "#9bb2d9",
-      });
-      actionHint.on("dblclick", () => {
-        const raw = window.prompt("Nueva acción", "");
-        if (raw === null) return;
-        step.actions = [...(step.actions ?? []), raw].filter(Boolean);
-        drawGrafcetSteps();
-      });
-    }
+      let actionHint;
+      if (!actions.length) {
+        actionHint = new Konva.Text({
+          x: actionPanelX + ACTION_PANEL_PADDING,
+          y: actionListTop,
+          text: "",
+          fontSize: 10,
+          fill: "#9bb2d9",
+        });
+        actionHint.on("dblclick", () => {
+          const raw = window.prompt("Nueva acción", "");
+          if (raw === null) return;
+          step.actions = [...(step.actions ?? []), raw].filter(Boolean);
+          drawGrafcetSteps();
+        });
+      }
 
     stateRect.on("mouseover", () => {
       stage.container().style.cursor = "grab";
@@ -662,7 +662,7 @@ function drawGrafcetSteps() {
         const textValue = transition.condition ?? "AUTO";
         const width = Math.max(measureTextWidth(textValue), 48);
         const labelBg = new Konva.Rect({
-          x: tipX - width / 2 - 4,
+          x: tipX - width / 2 - 4 + 50,
           y: tipY - 18,
           width,
           height: 18,
@@ -670,7 +670,7 @@ function drawGrafcetSteps() {
           cornerRadius: 4,
         });
         const label = new Konva.Text({
-          x: tipX - width / 2,
+          x: tipX - width / 2 + 50,
           y: tipY - 16,
           text: textValue,
           fontSize: 12,
