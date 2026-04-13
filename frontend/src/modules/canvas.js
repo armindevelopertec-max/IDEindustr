@@ -19,6 +19,7 @@ const ACTION_BADGE_HORIZONTAL_PADDING = 10;
 const ACTION_PANEL_MIN_WIDTH = 90;
 const ACTION_BADGE_MIN_WIDTH = 60;
 const ACTION_FONT_SIZE = 11;
+const ACTIONS_PER_ROW = 2;
 const STATE_PADDING_HORIZONTAL = 14;
 const STATE_MIN_WIDTH = 100;
 const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_MIN_WIDTH + ACTION_GAP;
@@ -253,24 +254,39 @@ function drawGrafcetSteps() {
     adjacency.set(step.name, []);
     const stateWidth = Math.max(measureStateWidth(step.name ?? ""), NODE_WIDTH);
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionWidths = actions.map((action) => {
+    const actionRows = [];
+    actions.forEach((action, idx) => {
+      const rowIndex = Math.floor(idx / ACTIONS_PER_ROW);
       const textWidth = measureTextWidth(action, ACTION_FONT_SIZE);
-      return Math.max(
+      const badgeWidth = Math.max(
         textWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2,
         ACTION_BADGE_MIN_WIDTH,
       );
+      if (!actionRows[rowIndex]) {
+        actionRows[rowIndex] = { items: [], rowWidth: 0 };
+      }
+      const row = actionRows[rowIndex];
+      row.items.push({ text: action, width: badgeWidth });
+      row.rowWidth += badgeWidth + (row.items.length > 1 ? ACTION_BADGE_SPACING : 0);
     });
-    const totalActionWidth = actionWidths.reduce((sum, width) => sum + width, 0);
-    const spacingWidth = Math.max(0, actionWidths.length - 1) * ACTION_BADGE_SPACING;
-    const actionPanelWidth = Math.max(
-      ACTION_PANEL_MIN_WIDTH,
-      totalActionWidth + spacingWidth + ACTION_PANEL_PADDING * 2,
+    const maxRowWidth = actionRows.reduce(
+      (max, row) => Math.max(max, row.rowWidth),
+      0,
     );
+    const innerPanelWidth = Math.max(maxRowWidth, ACTION_PANEL_MIN_WIDTH);
+    const actionPanelWidth = innerPanelWidth + ACTION_PANEL_PADDING * 2;
+    const actionRowsHeight =
+      actionRows.length * ACTION_BADGE_HEIGHT + Math.max(0, actionRows.length - 1) * ACTION_BADGE_SPACING;
+    const panelContentHeight = actionRowsHeight || ACTION_BADGE_HEIGHT;
+    const panelHeightWithPadding = panelContentHeight + ACTION_PANEL_PADDING * 2;
+    const nodeHeight = Math.max(NODE_BODY_HEIGHT, panelHeightWithPadding);
     nodeMetrics.set(step.name, {
       stateWidth,
       actionPanelWidth,
-      actionWidths,
-      height: NODE_BODY_HEIGHT,
+      actionPanelInnerWidth: innerPanelWidth,
+      actionRows,
+      panelContentHeight,
+      height: nodeHeight,
       totalWidth: stateWidth + ACTION_GAP + actionPanelWidth,
     });
   });
@@ -330,7 +346,10 @@ function drawGrafcetSteps() {
     if (!nodes.length) {
       return;
     }
-    const levelHeight = NODE_BODY_HEIGHT;
+    const levelHeight = nodes.reduce((maxHeight, step) => {
+      const metrics = nodeMetrics.get(step.name);
+      return Math.max(maxHeight, metrics?.height ?? NODE_BODY_HEIGHT);
+    }, NODE_BODY_HEIGHT);
     const levelWidth = nodes.reduce((acc, step, idx) => {
       const metrics = nodeMetrics.get(step.name);
       const nodeWidth = metrics?.totalWidth ?? NODE_TOTAL_WIDTH;
@@ -456,51 +475,47 @@ function drawGrafcetSteps() {
 
     const metrics = nodeMetrics.get(step.name);
     const actionPanelWidth = metrics?.actionPanelWidth ?? ACTION_PANEL_MIN_WIDTH;
-    const actionPanelRect = new Konva.Rect({
-      x: actionPanelX,
-      y: pos.y,
-      width: actionPanelWidth,
-      height: pos.height,
-      fill: ACTION_PANEL_FILL,
-      stroke: ACTION_PANEL_STROKE,
-      strokeWidth: 1,
-      cornerRadius: 8,
-    });
-
+    const actionPanelInnerWidth = actionPanelWidth - ACTION_PANEL_PADDING * 2;
+    const actionRows = metrics?.actionRows ?? [];
+    const actionRowsHeight = metrics?.panelContentHeight ?? ACTION_BADGE_HEIGHT;
+    const actionListTop = pos.y + (pos.height - actionRowsHeight) / 2;
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionListY = pos.y + (pos.height - ACTION_BADGE_HEIGHT) / 2;
-    let actionCursorX = actionPanelX + ACTION_PANEL_PADDING;
-    const actionWidths = metrics?.actionWidths ?? [];
-    actions.forEach((action, actionIdx) => {
-      const rectWidth = actionWidths[actionIdx] ?? ACTION_BADGE_MIN_WIDTH;
-      const actionRect = new Konva.Rect({
-        x: actionCursorX,
-        y: actionListY,
-        width: rectWidth,
-        height: ACTION_BADGE_HEIGHT,
-        fill: ACTION_ITEM_FILL,
-        stroke: ACTION_ITEM_STROKE,
-        strokeWidth: 1,
-        cornerRadius: 4,
+    actionRows.forEach((row, rowIndex) => {
+      const rowY =
+        actionListTop + rowIndex * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
+      const rowStartX =
+        actionPanelX + ACTION_PANEL_PADDING + Math.max((actionPanelInnerWidth - row.rowWidth) / 2, 0);
+      let cursorX = rowStartX;
+      row.items.forEach((item) => {
+        const actionRect = new Konva.Rect({
+          x: cursorX,
+          y: rowY,
+          width: item.width,
+          height: ACTION_BADGE_HEIGHT,
+          fill: ACTION_ITEM_FILL,
+          stroke: ACTION_ITEM_STROKE,
+          strokeWidth: 1,
+          cornerRadius: 4,
+        });
+        const actionLabel = new Konva.Text({
+          x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
+          y: actionRect.y() + 4,
+          text: item.text,
+          fontSize: ACTION_FONT_SIZE,
+          fill: ACTION_ITEM_TEXT,
+          width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
+          align: "left",
+        });
+        layer.add(actionRect, actionLabel);
+        cursorX += item.width + ACTION_BADGE_SPACING;
       });
-      const actionLabel = new Konva.Text({
-        x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
-        y: actionRect.y() + 4,
-        text: action,
-        fontSize: ACTION_FONT_SIZE,
-        fill: ACTION_ITEM_TEXT,
-        width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
-        align: "left",
-      });
-      layer.add(actionRect, actionLabel);
-      actionCursorX += rectWidth + ACTION_BADGE_SPACING;
     });
 
     let actionHint;
     if (!actions.length) {
       actionHint = new Konva.Text({
         x: actionPanelX + ACTION_PANEL_PADDING,
-        y: actionListY,
+        y: actionListTop,
         text: "doble clic → agregar acción",
         fontSize: 10,
         fill: "#9bb2d9",
