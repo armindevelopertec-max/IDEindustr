@@ -620,7 +620,7 @@ function drawGrafcetSteps() {
           ];
 
       const loopColor = shouldLoop
-        ? getLoopColor(transition.source)
+        ? getStateColor(transition.target)
         : "#ffffff";
       const arrow = new Konva.Arrow({
         points,
@@ -749,7 +749,7 @@ function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
 }
 
 const loopColorCache = new Map();
-function getLoopColor(stateId) {
+function getStateColor(stateId) {
   if (!stateId) return "#ffffff";
   if (loopColorCache.has(stateId)) {
     return loopColorCache.get(stateId);
