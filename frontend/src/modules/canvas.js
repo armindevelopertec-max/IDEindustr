@@ -166,8 +166,54 @@ export function setupGrafcetCanvas(containerId) {
 }
 
 function renderGrafcetSteps(steps = []) {
-  canvasState.steps = steps.map((step) => normalizeStep(step));
-  canvasState.nextStepId = Math.max(2, canvasState.steps.length + 1);
+  const oldStepsMap = new Map(canvasState.steps.map((s) => [s.name, s]));
+
+  canvasState.steps = steps.map((step) => {
+    const normalized = normalizeStep(step);
+    const oldStep = oldStepsMap.get(normalized.name);
+    
+    // 1. Prioridad: Datos que ya vienen en el objeto (del parser/archivo)
+    // 2. Prioridad: Datos de la sesión actual (oldStep)
+    if (step.position) {
+      normalized.position = { ...step.position };
+    } else if (oldStep?.position) {
+      normalized.position = { ...oldStep.position };
+    }
+    
+    // Lo mismo para transiciones manuales
+    normalized.transitions = normalized.transitions.map(newTrans => {
+      // Prioridad 1: Datos que vienen del archivo
+      if (newTrans.manualX !== undefined && newTrans.manualX !== null) {
+        return newTrans;
+      }
+
+      // Prioridad 2: Datos de la sesión actual
+      if (oldStep) {
+        const oldTrans = oldStep.transitions.find(
+          ot => ot.target === newTrans.target && ot.condition === newTrans.condition
+        );
+        if (oldTrans) {
+          return {
+            ...newTrans,
+            manualX: oldTrans.manualX,
+            manualY: oldTrans.manualY
+          };
+        }
+      }
+      return newTrans;
+    });
+
+    return normalized;
+  });
+
+  canvasState.nextStepId = Math.max(
+    2,
+    ...canvasState.steps.map((s) => {
+      const match = s.name.match(/\d+/);
+      return match ? parseInt(match[0], 10) + 1 : 0;
+    }),
+    canvasState.steps.length + 1,
+  );
   drawGrafcetSteps();
 }
 
@@ -176,7 +222,11 @@ function normalizeStep(step) {
     name: step.name,
     actions: Array.isArray(step.actions) ? [...step.actions] : [],
     transitions: Array.isArray(step.transitions)
-      ? step.transitions.map((transition) => ({ ...transition }))
+      ? step.transitions.map((transition) => ({
+          ...transition,
+          manualX: transition.manualX ?? null,
+          manualY: transition.manualY ?? null,
+        }))
       : [],
     active: Boolean(step.active),
     level: typeof step.level === "number" ? step.level : 0,
@@ -252,34 +302,40 @@ function drawGrafcetSteps() {
 
   canvasState.steps.forEach((step) => {
     adjacency.set(step.name, []);
+    const isS0 = step.name === "S0";
     const stateWidth = Math.max(measureStateWidth(step.name ?? ""), NODE_WIDTH);
-    const actions = Array.isArray(step.actions) ? step.actions : [];
+    const actions = !isS0 && Array.isArray(step.actions) ? step.actions : [];
     const actionRows = [];
-    actions.forEach((action, idx) => {
-      const rowIndex = Math.floor(idx / ACTIONS_PER_ROW);
-      const textWidth = measureTextWidth(action, ACTION_FONT_SIZE);
-      const badgeWidth = Math.max(
-        textWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2,
-        ACTION_BADGE_MIN_WIDTH,
-      );
-      if (!actionRows[rowIndex]) {
-        actionRows[rowIndex] = { items: [], rowWidth: 0 };
-      }
-      const row = actionRows[rowIndex];
-      row.items.push({ text: action, width: badgeWidth });
-      row.rowWidth += badgeWidth + (row.items.length > 1 ? ACTION_BADGE_SPACING : 0);
-    });
+    
+    if (!isS0) {
+      actions.forEach((action, idx) => {
+        const rowIndex = Math.floor(idx / ACTIONS_PER_ROW);
+        const textWidth = measureTextWidth(action, ACTION_FONT_SIZE);
+        const badgeWidth = Math.max(
+          textWidth + ACTION_BADGE_HORIZONTAL_PADDING * 2,
+          ACTION_BADGE_MIN_WIDTH,
+        );
+        if (!actionRows[rowIndex]) {
+          actionRows[rowIndex] = { items: [], rowWidth: 0 };
+        }
+        const row = actionRows[rowIndex];
+        row.items.push({ text: action, width: badgeWidth });
+        row.rowWidth += badgeWidth + (row.items.length > 1 ? ACTION_BADGE_SPACING : 0);
+      });
+    }
+
     const maxRowWidth = actionRows.reduce(
       (max, row) => Math.max(max, row.rowWidth),
       0,
     );
-    const innerPanelWidth = Math.max(maxRowWidth, ACTION_PANEL_MIN_WIDTH);
-    const actionPanelWidth = innerPanelWidth + ACTION_PANEL_PADDING * 2;
+    const innerPanelWidth = Math.max(maxRowWidth, isS0 ? 0 : ACTION_PANEL_MIN_WIDTH);
+    const actionPanelWidth = isS0 ? 0 : innerPanelWidth + ACTION_PANEL_PADDING * 2;
     const actionRowsHeight =
       actionRows.length * ACTION_BADGE_HEIGHT + Math.max(0, actionRows.length - 1) * ACTION_BADGE_SPACING;
-    const panelContentHeight = actionRowsHeight || ACTION_BADGE_HEIGHT;
-    const panelHeightWithPadding = panelContentHeight + ACTION_PANEL_PADDING * 2;
+    const panelContentHeight = actionRowsHeight || (isS0 ? 0 : ACTION_BADGE_HEIGHT);
+    const panelHeightWithPadding = isS0 ? 0 : panelContentHeight + ACTION_PANEL_PADDING * 2;
     const nodeHeight = Math.max(NODE_BODY_HEIGHT, panelHeightWithPadding);
+    
     nodeMetrics.set(step.name, {
       stateWidth,
       actionPanelWidth,
@@ -287,7 +343,7 @@ function drawGrafcetSteps() {
       actionRows,
       panelContentHeight,
       height: nodeHeight,
-      totalWidth: stateWidth + ACTION_GAP + actionPanelWidth,
+      totalWidth: stateWidth + (isS0 ? 0 : ACTION_GAP + actionPanelWidth),
     });
   });
 
@@ -383,13 +439,27 @@ function drawGrafcetSteps() {
       const nodeHeight = metrics?.height ?? NODE_BODY_HEIGHT;
       const stateWidth = metrics?.stateWidth ?? NODE_WIDTH;
       const nodeTotalWidth = metrics?.totalWidth ?? NODE_TOTAL_WIDTH;
-      positions[step.name] = {
-        x: currentX,
-        y: rowY,
-        height: nodeHeight,
-        stateWidth,
-        totalWidth: nodeTotalWidth,
-      };
+      
+      // Respect manual position if it exists
+      if (step.position) {
+        positions[step.name] = {
+          x: step.position.x,
+          y: step.position.y,
+          height: nodeHeight,
+          stateWidth,
+          totalWidth: nodeTotalWidth,
+          isManual: true
+        };
+      } else {
+        positions[step.name] = {
+          x: currentX,
+          y: rowY,
+          height: nodeHeight,
+          stateWidth,
+          totalWidth: nodeTotalWidth,
+        };
+      }
+
       currentX += nodeTotalWidth;
       if (index < nodes.length - 1) {
         currentX += HORIZONTAL_GAP;
@@ -451,69 +521,58 @@ function drawGrafcetSteps() {
 
 
     const metrics = nodeMetrics.get(step.name);
-    const actionPanelWidth = metrics?.actionPanelWidth ?? ACTION_PANEL_MIN_WIDTH;
-    const actionPanelInnerWidth = actionPanelWidth - ACTION_PANEL_PADDING * 2;
-    const actionPanelRect = new Konva.Rect({
-      x: actionPanelX,
-      y: pos.y,
-      width: actionPanelWidth,
-      height: pos.height,
-      fill: ACTION_PANEL_FILL,
-      stroke: ACTION_PANEL_STROKE,
-      strokeWidth: 1,
-      cornerRadius: 8,
-    });
-    const actionRows = metrics?.actionRows ?? [];
-    const actionRowsHeight = metrics?.panelContentHeight ?? ACTION_BADGE_HEIGHT;
-    const actionListTop = pos.y + (pos.height - actionRowsHeight) / 2;
-    const actions = Array.isArray(step.actions) ? step.actions : [];
-    actionRows.forEach((row, rowIndex) => {
-      const rowY =
-        actionListTop + rowIndex * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
-      const rowStartX =
-        actionPanelX + ACTION_PANEL_PADDING + Math.max((actionPanelInnerWidth - row.rowWidth) / 2, 0);
-      let cursorX = rowStartX;
-      row.items.forEach((item) => {
-        const actionRect = new Konva.Rect({
-          x: cursorX,
-          y: rowY,
-          width: item.width,
-          height: ACTION_BADGE_HEIGHT,
-          fill: ACTION_ITEM_FILL,
-          stroke: ACTION_ITEM_STROKE,
-          strokeWidth: 1,
-          cornerRadius: 4,
-        });
-        const actionLabel = new Konva.Text({
-          x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
-          y: actionRect.y() + 4,
-          text: item.text,
-          fontSize: ACTION_FONT_SIZE,
-          fill: ACTION_ITEM_TEXT,
-          width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
-          align: "left",
-        });
-      layer.add(actionRect, actionLabel);
-      cursorX += item.width + ACTION_BADGE_SPACING;
-    });
-  });
+    const isS0 = step.name === "S0";
+    const actionPanelWidth = metrics?.actionPanelWidth ?? 0;
+    const actionPanelInnerWidth = metrics?.actionPanelInnerWidth ?? 0;
 
-      let actionHint;
-      if (!actions.length) {
-        actionHint = new Konva.Text({
-          x: actionPanelX + ACTION_PANEL_PADDING,
-          y: actionListTop,
-          text: "",
-          fontSize: 10,
-          fill: "#9bb2d9",
+    if (!isS0) {
+      const actionPanelRect = new Konva.Rect({
+        x: actionPanelX,
+        y: pos.y,
+        width: actionPanelWidth,
+        height: pos.height,
+        fill: ACTION_PANEL_FILL,
+        stroke: ACTION_PANEL_STROKE,
+        strokeWidth: 1,
+        cornerRadius: 8,
+      });
+      layer.add(actionPanelRect);
+
+      const actionRows = metrics?.actionRows ?? [];
+      const actionRowsHeight = metrics?.panelContentHeight ?? ACTION_BADGE_HEIGHT;
+      const actionListTop = pos.y + (pos.height - actionRowsHeight) / 2;
+      
+      actionRows.forEach((row, rowIndex) => {
+        const rowY =
+          actionListTop + rowIndex * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
+        const rowStartX =
+          actionPanelX + ACTION_PANEL_PADDING + Math.max((actionPanelInnerWidth - row.rowWidth) / 2, 0);
+        let cursorX = rowStartX;
+        row.items.forEach((item) => {
+          const actionRect = new Konva.Rect({
+            x: cursorX,
+            y: rowY,
+            width: item.width,
+            height: ACTION_BADGE_HEIGHT,
+            fill: ACTION_ITEM_FILL,
+            stroke: ACTION_ITEM_STROKE,
+            strokeWidth: 1,
+            cornerRadius: 4,
+          });
+          const actionLabel = new Konva.Text({
+            x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
+            y: actionRect.y() + 4,
+            text: item.text,
+            fontSize: ACTION_FONT_SIZE,
+            fill: ACTION_ITEM_TEXT,
+            width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
+            align: "left",
+          });
+          layer.add(actionRect, actionLabel);
+          cursorX += item.width + ACTION_BADGE_SPACING;
         });
-        actionHint.on("dblclick", () => {
-          const raw = window.prompt("Nueva acción", "");
-          if (raw === null) return;
-          step.actions = [...(step.actions ?? []), raw].filter(Boolean);
-          drawGrafcetSteps();
-        });
-      }
+      });
+    }
 
     stateRect.on("mouseover", () => {
       stage.container().style.cursor = "grab";
@@ -535,10 +594,7 @@ function drawGrafcetSteps() {
       }
     });
 
-    layer.add(stateRect, actionPanelRect, label);
-    if (actionHint) {
-      layer.add(actionHint);
-    }
+    layer.add(stateRect, label);
   });
 
   const stepLookup = new Map(canvasState.steps.map((step) => [step.name, step]));
@@ -593,19 +649,17 @@ function drawGrafcetSteps() {
         offset: 0,
         verticalOffset: 0,
       };
-      const horizontalY = shouldLoop
-        ? startY +
-          Math.max(50, Math.abs(targetEntryY - startY) / 2) +
-          loopBias.verticalOffset
-        : directRise;
+      
+      const horizontalY = transition.manualY !== null 
+        ? transition.manualY 
+        : (shouldLoop 
+            ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + loopBias.verticalOffset
+            : directRise);
+
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
       const finalTargetEntryY =
         targetEntryY - entryMargin;
-
-      const verticalMidY = shouldLoop
-        ? startY + Math.min(20, Math.max(12, entryMargin * 4))
-        : (horizontalY + finalTargetEntryY) / 2;
 
       const loopDirection = Math.sign(targetCenterX - startX) || 1;
       const loopLeadingOffset = shouldLoop ? loopDirection * 6 : 0;
@@ -614,9 +668,7 @@ function drawGrafcetSteps() {
         horizontalOffset +
         (shouldLoop ? loopBias.offset + loopLeadingOffset : 0);
       const arrowStartY = startY + (shouldLoop ? loopBias.verticalOffset : 0);
-      const horizontalEntryX =
-        targetCenterX +
-        (shouldLoop ? loopBias.offset * 0.5 + loopLeadingOffset * 0.5 : 0);
+
       const points = shouldLoop
         ? buildLoopPoints(
             arrowStartX,
@@ -624,13 +676,14 @@ function drawGrafcetSteps() {
             targetCenterX,
             finalTargetEntryY,
             loopBias.offset,
+            transition.manualX
           )
         : [
             arrowStartX,
             arrowStartY,
             arrowStartX,
             horizontalY,
-            horizontalEntryX,
+            targetCenterX,
             horizontalY,
             targetCenterX,
             finalTargetEntryY,
@@ -639,13 +692,7 @@ function drawGrafcetSteps() {
       const loopColor = shouldLoop
         ? getStateColor(transition.target)
         : "#ffffff";
-      if (shouldLoop) {
-        const labelText = transition.condition ?? "AUTO";
-        const width = Math.max(measureTextWidth(labelText), 40);
-        const bucket = loopLabelBuckets.get(transition.source) ?? [];
-        bucket.push({ text: labelText, color: loopColor, width });
-        loopLabelBuckets.set(transition.source, bucket);
-      }
+      
       const arrow = new Konva.Arrow({
         points,
         pointerLength: 10,
@@ -654,27 +701,89 @@ function drawGrafcetSteps() {
         fill: loopColor,
         strokeWidth: 2,
         tension: 0,
+        opacity: 0.8,
       });
 
+      // Handle para estirar la línea
+      const handle = new Konva.Circle({
+        radius: 6,
+        fill: loopColor,
+        draggable: true,
+        stroke: "white",
+        strokeWidth: 1,
+        opacity: 0.6,
+      });
+
+      if (shouldLoop) {
+        const hClearance = 80;
+        const mX = transition.manualX !== null 
+          ? transition.manualX 
+          : Math.max(arrowStartX, targetCenterX) + hClearance + loopBias.offset * 20;
+        
+        handle.position({
+          x: mX,
+          y: (arrowStartY + finalTargetEntryY) / 2
+        });
+
+        handle.on("dragmove", () => {
+          transition.manualX = handle.x();
+          const newPoints = buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX);
+          arrow.points(newPoints);
+        });
+      } else {
+        handle.position({
+          x: targetCenterX,
+          y: horizontalY
+        });
+
+        handle.on("dragmove", () => {
+          transition.manualY = handle.y();
+          const newPoints = [
+            arrowStartX, arrowStartY,
+            arrowStartX, transition.manualY,
+            targetCenterX, transition.manualY,
+            targetCenterX, finalTargetEntryY
+          ];
+          arrow.points(newPoints);
+        });
+      }
+
+      handle.on("dragend", () => {
+        drawGrafcetSteps();
+      });
+
+      if (shouldLoop) {
+        const labelText = transition.condition ?? "AUTO";
+        const width = Math.max(measureTextWidth(labelText), 40);
+        const bucket = loopLabelBuckets.get(transition.source) ?? [];
+        bucket.push({ text: labelText, color: loopColor, width });
+        loopLabelBuckets.set(transition.source, bucket);
+      }
+      
       const tipX = targetCenterX;
       const tipY = finalTargetEntryY;
       if (!shouldLoop) {
         const textValue = transition.condition ?? "AUTO";
         const width = Math.max(measureTextWidth(textValue), 48);
         const labelBg = new Konva.Rect({
-          x: tipX - width / 2 - 4 + 50,
-          y: tipY - 18,
-          width,
+          x: tipX - width / 2 - 4,
+          y: tipY - 24,
+          width: width + 8,
           height: 18,
           fill: "rgba(5, 12, 25, 0.95)",
           cornerRadius: 4,
+          stroke: "#ffffff22",
+          strokeWidth: 1,
         });
         const label = new Konva.Text({
-          x: tipX - width / 2 + 50,
-          y: tipY - 16,
+          x: tipX - width / 2,
+          y: tipY - 22,
           text: textValue,
-          fontSize: 12,
+          fontSize: 11,
+          fontStyle: "bold",
           fill: "#f5faff",
+          width: width,
+          align: "center",
         });
         label.on("dblclick", () => {
           const value = window.prompt("Condición", transition.condition);
@@ -684,7 +793,7 @@ function drawGrafcetSteps() {
         });
         layer.add(labelBg, label);
       }
-      layer.add(arrow);
+      layer.add(arrow, handle);
     });
   });
 
@@ -761,22 +870,22 @@ function cloneSteps(steps) {
 }
 
 
-function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0) {
-  const marginXBase = stage ? stage.width() - 40 : startX + 150;
-  const marginX = marginXBase + loopOffset * 15;
-  const midY = Math.max(20, Math.min(targetY - 20, startY - 20));
+function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0, manualX = null) {
+  const horizontalClearance = 80;
+  const marginX = manualX !== null ? manualX : Math.max(startX, targetX) + horizontalClearance + loopOffset * 20;
+  
   return [
-    startX + loopOffset,
+    startX,
     startY,
-    startX + loopOffset,
-    startY + 30,
+    startX,
+    startY + 20,
     marginX,
-    startY + 30,
+    startY + 20,
     marginX,
-    midY,
-    targetX + loopOffset,
-    midY,
-    targetX + loopOffset,
+    targetY - 20,
+    targetX,
+    targetY - 20,
+    targetX,
     targetY,
   ];
 }

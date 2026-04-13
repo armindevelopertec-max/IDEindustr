@@ -42,11 +42,59 @@ html {
 .ide-header {
   text-align: center;
   margin-bottom: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 1rem;
+}
+
+.file-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.5rem 1rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--panel-border);
+}
+
+.filename-display {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 0.85rem;
+  color: var(--node-active);
+  border-left: 1px solid var(--panel-border);
+  padding-left: 0.8rem;
+  margin-left: 0.4rem;
+}
+
+.file-toolbar button {
+  margin: 0;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  transition: all 0.2s;
+}
+
+.file-toolbar button:hover {
+  background: var(--node-active);
+  color: #041725;
+}
+
+#btn-save {
+  background: linear-gradient(135deg, #4df59f, #32d182);
+  color: #041725;
 }
 
 .ide-header h1 {
   margin: 0;
-  font-size: 2.4rem;
+  font-size: 1.8rem;
 }
 
 .ide-header p {
@@ -174,6 +222,10 @@ html {
   margin: 0;
 }
 
+.editor-card {
+  flex: 1;
+}
+
 .editor-wrapper {
   position: relative;
   background: var(--bg-primary);
@@ -181,15 +233,16 @@ html {
   padding: 0.4rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .editor-layers {
   position: relative;
   width: 100%;
-  min-height: 200px;
+  flex: 1;
   margin: 0;
-  margin-block-start: 15.2px;
-  margin-block-end: 15.2px;
 }
 
 .editor-base {
@@ -217,13 +270,13 @@ html {
 
 textarea {
   width: 100%;
-  min-height: 200px;
+  height: 100%;
   box-sizing: border-box;
   background: transparent;
   border: none;
   color: transparent;
   caret-color: var(--node-active);
-  resize: vertical;
+  resize: none;
   position: relative;
   z-index: 1;
 }

@@ -46,7 +46,19 @@ function ensureState(map, id) {
 }
 
 export function parseCnlText(text = "") {
-  const lines = text.split(/\r?\n/);
+  // Extraer metadatos si existen
+  let layoutData = null;
+  const layoutMatch = text.match(/\/\* LAYOUT_DATA: (.*) \*\//);
+  if (layoutMatch) {
+    try {
+      layoutData = JSON.parse(layoutMatch[1]);
+    } catch (e) {
+      console.warn("Error al parsear metadatos de diseño");
+    }
+  }
+
+  const cleanText = text.replace(/\/\* LAYOUT_DATA: .* \*\//, "");
+  const lines = cleanText.split(/\r?\n/);
   const stateMap = new Map();
   const transitions = [];
   const errors = [];
@@ -194,18 +206,39 @@ export function parseCnlText(text = "") {
 
   const steps = [...stateMap.values()]
     .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
-    .map((state) => ({
-      name: state.id,
-      actions: [...state.actions],
-      transitions: state.outgoing.map((transition) => ({
-        source: transition.from,
-        target: transition.to,
-        condition: transition.condition,
-      })),
-      level: state.number ?? 0,
-      active: state.id === "S0",
-      error: state.errorMessages.length > 0,
-    }));
+    .map((state) => {
+      const step = {
+        name: state.id,
+        actions: [...state.actions],
+        transitions: state.outgoing.map((transition) => ({
+          source: transition.from,
+          target: transition.to,
+          condition: transition.condition,
+        })),
+        level: state.number ?? 0,
+        active: state.id === "S0",
+        error: state.errorMessages.length > 0,
+      };
+
+      // Aplicar metadatos guardados si existen para este paso
+      if (layoutData && layoutData[state.id]) {
+        const meta = layoutData[state.id];
+        if (meta.position) step.position = meta.position;
+        
+        // Aplicar manualX/Y a las transiciones
+        if (meta.transitions) {
+          step.transitions = step.transitions.map(t => {
+            const mTrans = meta.transitions.find(mt => mt.target === t.target && mt.condition === t.condition);
+            if (mTrans) {
+              return { ...t, manualX: mTrans.manualX, manualY: mTrans.manualY };
+            }
+            return t;
+          });
+        }
+      }
+
+      return step;
+    });
 
   return {
     steps,

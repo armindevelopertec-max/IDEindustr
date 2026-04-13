@@ -1,0 +1,32 @@
+s0 next star -> s1
+s1 then motor1 next star -> s2
+s1 then motor2 next star -> s3
+s2 then motor3, motor2, motor4, motor5  next star -> s4
+s1 next sto -> s5 
+s3 then motor3, motor3, motor5, motoro next sto -> s7
+s3 then motor3, motor3, motor5, motoro next sto -> s8
+s3 then motor3, motor3, motor5, motoro next sto -> s9
+s4 then motor3, motor3, motor5, motoro next sto -> s10
+s10 next 12 -> s0
+s10 next 4 -> s1 
+
+
+
+
+s0 next Si, OM -> S1
+S1 THEN OPE+ NEXT R1 -> S2
+S1 NEXT R2 -> S5
+S2 THEN AVANCE NEXT Sm -> s3
+s3 then retroceso next si -> s4
+s4 then CONT1=3 NEXT cont1 -> s2
+s4 NEXT cont1 -> s8
+s5 then AVANCE NEXT sf -> s6
+s6 then retroceso next si -> s7
+s7 then cont2=3 -> next cont2 -> s5
+s7 next cont2, cont1 -> s8
+s8 then pre, t=3seg next t, parar -> s10
+s8 next t, parar -> s1
+s10 then OPE- next 1 -> s0
+
+s100 then 
+ 
