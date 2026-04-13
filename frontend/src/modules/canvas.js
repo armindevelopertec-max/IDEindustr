@@ -414,7 +414,7 @@ function drawGrafcetSteps() {
 
     const label = new Konva.Text({
       x: pos.x,
-      y: pos.y + (NODE_HEADER_HEIGHT - 20) / 2,
+      y: pos.y,
       width: stateWidth,
       align: "center",
       text: `${step.name ?? ""}`,
@@ -422,6 +422,8 @@ function drawGrafcetSteps() {
       fontSize: 16,
       fontStyle: "bold",
     });
+    const centeredY = pos.y + Math.max((pos.height - label.getHeight()) / 2, 0);
+    label.y(centeredY);
 
 
     const actionPanelRect = new Konva.Rect({
