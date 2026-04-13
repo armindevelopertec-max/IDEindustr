@@ -5,16 +5,15 @@ const NODE_HEADER_HEIGHT = 36;
 const ACTION_SECTION_PADDING = 10;
 const LEVEL_VERTICAL_GAP = 70;
 const HORIZONTAL_GAP = 80;
-const ACTION_TEXT_MARGIN = 12;
-const ACTION_HINT_OFFSET = 12;
 const ACTION_GAP = 24;
 const NODE_BODY_HEIGHT = NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2;
-const ACTION_PANEL_WIDTH = 150;
-const ACTION_BADGE_HEIGHT = 26;
-const ACTION_BADGE_SPACING = 8;
-const ACTION_BADGE_FILL = "#ffd166";
-const ACTION_BADGE_STROKE = "rgba(0,0,0,0.08)";
-const ACTION_BADGE_TEXT = "#2d1f0b";
+const ACTION_PANEL_WIDTH = 130;
+const ACTION_PANEL_PADDING = 12;
+const ACTION_PANEL_FILL = "rgba(255, 255, 255, 0.05)";
+const ACTION_PANEL_STROKE = "rgba(255, 255, 255, 0.2)";
+const ACTION_ITEM_FILL = "#ffd166";
+const ACTION_ITEM_STROKE = "rgba(0,0,0,0.1)";
+const ACTION_ITEM_TEXT = "#2d1f0b";
 const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_WIDTH + ACTION_GAP;
 
 let stage = null;
@@ -317,8 +316,9 @@ function drawGrafcetSteps() {
       positions[step.name] = {
         x,
         y: rowY,
-        width: NODE_WIDTH,
+        width: NODE_TOTAL_WIDTH,
         height: nodeHeight,
+        stateWidth: NODE_WIDTH,
       };
     });
   });
@@ -333,7 +333,7 @@ function drawGrafcetSteps() {
     });
   });
 
-  const horizontalSpacing = NODE_WIDTH + 40;
+  const horizontalSpacing = NODE_TOTAL_WIDTH + 40;
   parentChildren.forEach((children, parent) => {
     if (children.length <= 1) return;
     const parentPos = positions[parent];
@@ -359,10 +359,12 @@ function drawGrafcetSteps() {
     if (!pos) return;
 
     const isError = Boolean(step.error);
-    const rect = new Konva.Rect({
+    const stateWidth = pos.stateWidth ?? NODE_WIDTH;
+    const actionPanelX = pos.x + stateWidth + ACTION_GAP;
+    const stateRect = new Konva.Rect({
       x: pos.x,
       y: pos.y,
-      width: pos.width,
+      width: stateWidth,
       height: pos.height,
       fill: isError ? "#ff6b6b" : step.active ? "#4df59f" : "#66b2ff",
       cornerRadius: 8,
@@ -375,7 +377,7 @@ function drawGrafcetSteps() {
       const outer = new Konva.Rect({
         x: pos.x - 6,
         y: pos.y - 6,
-        width: pos.width + 12,
+        width: stateWidth + 12,
         height: pos.height + 12,
         cornerRadius: 10,
         stroke: "#bddbf7",
@@ -387,7 +389,7 @@ function drawGrafcetSteps() {
     const label = new Konva.Text({
       x: pos.x,
       y: pos.y + (NODE_HEADER_HEIGHT - 20) / 2,
-      width: pos.width,
+      width: stateWidth,
       align: "center",
       text: `${step.name ?? ""}`,
       fill: "#041725",
@@ -399,57 +401,56 @@ function drawGrafcetSteps() {
       points: [
         pos.x,
         pos.y + NODE_HEADER_HEIGHT,
-        pos.x + pos.width,
+        pos.x + stateWidth,
         pos.y + NODE_HEADER_HEIGHT,
       ],
       stroke: "rgba(255,255,255,0.2)",
       strokeWidth: 1,
     });
 
+    const actionPanelRect = new Konva.Rect({
+      x: actionPanelX,
+      y: pos.y,
+      width: ACTION_PANEL_WIDTH,
+      height: pos.height,
+      fill: ACTION_PANEL_FILL,
+      stroke: ACTION_PANEL_STROKE,
+      strokeWidth: 1,
+      cornerRadius: 8,
+    });
+
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionBaseX = pos.x + pos.width + ACTION_GAP;
-    const actionBaseY = pos.y + (NODE_HEADER_HEIGHT - ACTION_BADGE_HEIGHT) / 2;
+    const actionListStartY = pos.y + ACTION_PANEL_PADDING;
     actions.forEach((action, actionIdx) => {
       const actionY =
-        actionBaseY + actionIdx * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
+        actionListStartY + actionIdx * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
       const actionRect = new Konva.Rect({
-        x: actionBaseX,
+        x: actionPanelX + ACTION_PANEL_PADDING,
         y: actionY,
-        width: ACTION_PANEL_WIDTH,
+        width: ACTION_PANEL_WIDTH - ACTION_PANEL_PADDING * 2,
         height: ACTION_BADGE_HEIGHT,
-        cornerRadius: 6,
-        fill: ACTION_BADGE_FILL,
-        stroke: ACTION_BADGE_STROKE,
+        fill: ACTION_ITEM_FILL,
+        stroke: ACTION_ITEM_STROKE,
         strokeWidth: 1,
+        cornerRadius: 4,
       });
       const actionLabel = new Konva.Text({
-        x: actionRect.x() + ACTION_TEXT_MARGIN,
-        y: actionRect.y() + (ACTION_BADGE_HEIGHT - 12) / 2,
+        x: actionRect.x() + 6,
+        y: actionRect.y() + 4,
         text: action,
-        fontSize: 12,
-        fill: ACTION_BADGE_TEXT,
-        width: actionRect.width() - ACTION_TEXT_MARGIN * 2,
+        fontSize: 11,
+        fill: ACTION_ITEM_TEXT,
+        width: actionRect.width() - 10,
         align: "left",
       });
-      const connector = new Konva.Line({
-        points: [
-          pos.x + pos.width,
-          pos.y + NODE_HEADER_HEIGHT / 2,
-          actionRect.x(),
-          actionRect.y() + ACTION_BADGE_HEIGHT / 2,
-        ],
-        stroke: "rgba(255,255,255,0.2)",
-        strokeWidth: 1,
-        dash: [6, 4],
-      });
-      layer.add(connector, actionRect, actionLabel);
+      layer.add(actionRect, actionLabel);
     });
 
     let actionHint;
     if (!actions.length) {
       actionHint = new Konva.Text({
-        x: actionBaseX,
-        y: actionBaseY,
+        x: actionPanelX + ACTION_PANEL_PADDING,
+        y: actionListStartY,
         text: "doble clic → agregar acción",
         fontSize: 10,
         fill: "#9bb2d9",
@@ -482,7 +483,7 @@ function drawGrafcetSteps() {
       }
     });
 
-    layer.add(rect, label, separator);
+    layer.add(stateRect, actionPanelRect, label, separator);
     if (actionHint) {
       layer.add(actionHint);
     }
@@ -508,9 +509,11 @@ function drawGrafcetSteps() {
       transitionCounter[step.name] = idx + 1;
       const horizontalOffset = (idx - (totalFromSource - 1) / 2) * 18;
 
-      const startX = source.x + source.width / 2;
+      const sourceStateWidth = source.stateWidth ?? NODE_WIDTH;
+      const startX = source.x + sourceStateWidth / 2;
       const startY = source.y + source.height;
-      const targetCenterX = target.x + target.width / 2;
+      const targetStateWidth = target.stateWidth ?? NODE_WIDTH;
+      const targetCenterX = target.x + targetStateWidth / 2;
       const targetEntryY = target.y;
       if (!branchOffsetsBySource.has(step.name)) {
         branchOffsetsBySource.set(step.name, createBranchOffsets(totalFromSource));
