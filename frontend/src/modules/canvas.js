@@ -16,7 +16,19 @@ const ACTION_ITEM_STROKE = "rgba(0,0,0,0.1)";
 const ACTION_ITEM_TEXT = "#2d1f0b";
 const ACTION_BADGE_HEIGHT = 26;
 const ACTION_BADGE_SPACING = 8;
+const STATE_PADDING_HORIZONTAL = 14;
+const STATE_MIN_WIDTH = 100;
 const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_WIDTH + ACTION_GAP;
+
+function measureStateWidth(label) {
+  const text = new Konva.Text({
+    text: label,
+    fontSize: 16,
+    fontStyle: "bold",
+  });
+  const measured = text.getTextWidth();
+  return Math.max(measured + STATE_PADDING_HORIZONTAL * 2, STATE_MIN_WIDTH);
+}
 
 let stage = null;
 let layer = null;
@@ -227,8 +239,10 @@ function drawGrafcetSteps() {
 
   canvasState.steps.forEach((step) => {
     adjacency.set(step.name, []);
+    const stateWidth = Math.max(measureStateWidth(step.name ?? ""), NODE_WIDTH);
     nodeMetrics.set(step.name, {
-      width: NODE_WIDTH,
+      stateWidth,
+      totalWidth: stateWidth + ACTION_GAP + ACTION_PANEL_WIDTH,
       height: NODE_BODY_HEIGHT,
     });
   });
@@ -289,8 +303,12 @@ function drawGrafcetSteps() {
       return;
     }
     const levelHeight = NODE_BODY_HEIGHT;
-    const levelWidth =
-      nodes.length * NODE_TOTAL_WIDTH + Math.max(0, nodes.length - 1) * HORIZONTAL_GAP;
+    const levelWidth = nodes.reduce((acc, step, idx) => {
+      const metrics = nodeMetrics.get(step.name);
+      const nodeWidth = metrics?.totalWidth ?? NODE_TOTAL_WIDTH;
+      const gap = idx < nodes.length - 1 ? HORIZONTAL_GAP : 0;
+      return acc + nodeWidth + gap;
+    }, 0);
     layoutGroups.push({
       level,
       nodes,
@@ -310,18 +328,23 @@ function drawGrafcetSteps() {
   layoutGroups.forEach(({ nodes, rowY, levelWidth }) => {
     if (!nodes.length) return;
     const rowWidth = levelWidth || NODE_TOTAL_WIDTH;
-    const startX = stageCenterX - rowWidth / 2;
+    let currentX = stageCenterX - rowWidth / 2;
     nodes.forEach((step, index) => {
       const metrics = nodeMetrics.get(step.name);
       const nodeHeight = metrics?.height ?? NODE_BODY_HEIGHT;
-      const x = startX + index * (NODE_TOTAL_WIDTH + HORIZONTAL_GAP);
+      const stateWidth = metrics?.stateWidth ?? NODE_WIDTH;
+      const nodeTotalWidth = metrics?.totalWidth ?? NODE_TOTAL_WIDTH;
       positions[step.name] = {
-        x,
+        x: currentX,
         y: rowY,
-        width: NODE_TOTAL_WIDTH,
         height: nodeHeight,
-        stateWidth: NODE_WIDTH,
+        stateWidth,
+        totalWidth: nodeTotalWidth,
       };
+      currentX += nodeTotalWidth;
+      if (index < nodes.length - 1) {
+        currentX += HORIZONTAL_GAP;
+      }
     });
   });
 
@@ -345,7 +368,8 @@ function drawGrafcetSteps() {
       const childPos = positions[childName];
       if (!childPos) return;
       childPos.x = parentPos.x + (index - centerOffset) * horizontalSpacing;
-      requiredWidth = Math.max(requiredWidth, childPos.x + childPos.width + 60);
+      const totalWidth = childPos.totalWidth ?? NODE_TOTAL_WIDTH;
+      requiredWidth = Math.max(requiredWidth, childPos.x + totalWidth + 60);
     });
   });
 
