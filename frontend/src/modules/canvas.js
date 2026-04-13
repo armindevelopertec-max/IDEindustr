@@ -541,13 +541,7 @@ function drawGrafcetSteps() {
     }
   });
 
-  const transitionsPerSource = new Map();
   const stepLookup = new Map(canvasState.steps.map((step) => [step.name, step]));
-  canvasState.steps.forEach((stepItem) => {
-    const count = stepItem.transitions?.length ?? 0;
-    if (count > 0) transitionsPerSource.set(stepItem.name, count);
-  });
-  const transitionCounter = {};
 
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
@@ -555,10 +549,7 @@ function drawGrafcetSteps() {
       const target = positions[transition.target];
       if (!source || !target) return;
 
-      const totalFromSource = transitionsPerSource.get(step.name) ?? 1;
-      const idx = transitionCounter[step.name] ?? 0;
-      transitionCounter[step.name] = idx + 1;
-      const horizontalOffset = (idx - (totalFromSource - 1) / 2) * 18;
+      const horizontalOffset = 0;
 
       const sourceStateWidth = source.stateWidth ?? NODE_WIDTH;
       const startX = source.x + sourceStateWidth / 2;
