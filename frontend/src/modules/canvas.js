@@ -557,9 +557,14 @@ function drawGrafcetSteps() {
     });
     if (!loops.length) return;
     const spacing = 18;
+    const verticalSpacing = 6;
     loops.forEach((transition, index) => {
       const offset = (index - (loops.length - 1) / 2) * spacing;
-      loopOffsetsBySource.set(transition, offset);
+      const verticalOffset = (index - (loops.length - 1) / 2) * verticalSpacing;
+      loopOffsetsBySource.set(transition, {
+        offset,
+        verticalOffset,
+      });
     });
   });
 
@@ -583,8 +588,14 @@ function drawGrafcetSteps() {
       const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
       const isAscending = targetEntryY < startY;
       const directRise = startY + (isAscending ? 10 : 18);
+      const loopBias = loopOffsetsBySource.get(transition) ?? {
+        offset: 0,
+        verticalOffset: 0,
+      };
       const horizontalY = shouldLoop
-        ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2)
+        ? startY +
+          Math.max(50, Math.abs(targetEntryY - startY) / 2) +
+          loopBias.verticalOffset
         : directRise;
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
@@ -595,22 +606,23 @@ function drawGrafcetSteps() {
         ? startY + Math.min(20, Math.max(12, entryMargin * 4))
         : (horizontalY + finalTargetEntryY) / 2;
 
-      const loopOffset = loopOffsetsBySource.get(transition) ?? 0;
       const loopDirection = Math.sign(targetCenterX - startX) || 1;
       const loopLeadingOffset = shouldLoop ? loopDirection * 6 : 0;
       const arrowStartX =
-        startX + horizontalOffset + (shouldLoop ? loopOffset + loopLeadingOffset : 0);
-      const arrowStartY = startY;
+        startX +
+        horizontalOffset +
+        (shouldLoop ? loopBias.offset + loopLeadingOffset : 0);
+      const arrowStartY = startY + (shouldLoop ? loopBias.verticalOffset : 0);
       const horizontalEntryX =
         targetCenterX +
-        (shouldLoop ? loopOffset * 0.5 + loopLeadingOffset * 0.5 : 0);
+        (shouldLoop ? loopBias.offset * 0.5 + loopLeadingOffset * 0.5 : 0);
       const points = shouldLoop
         ? buildLoopPoints(
             arrowStartX,
             arrowStartY,
             targetCenterX,
             finalTargetEntryY,
-            loopOffset,
+            loopBias.offset,
           )
         : [
             arrowStartX,
