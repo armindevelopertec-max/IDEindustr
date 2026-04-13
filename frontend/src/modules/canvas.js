@@ -2,24 +2,20 @@ import Konva from "konva";
 
 const NODE_WIDTH = 160;
 const NODE_HEADER_HEIGHT = 36;
-const ACTION_ROW_HEIGHT = 20;
-const ACTION_ROW_SPACING = 6;
 const ACTION_SECTION_PADDING = 10;
 const LEVEL_VERTICAL_GAP = 70;
 const HORIZONTAL_GAP = 80;
 const ACTION_TEXT_MARGIN = 12;
 const ACTION_HINT_OFFSET = 12;
+const ACTION_GAP = 24;
 const NODE_BODY_HEIGHT = NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2;
-
-function calculateActionStackHeight(step) {
-  const actions = Array.isArray(step.actions) ? step.actions : [];
-  if (!actions.length) {
-    return 0;
-  }
-  const rowsHeight = actions.length * ACTION_ROW_HEIGHT;
-  const spacings = Math.max(0, actions.length - 1) * ACTION_ROW_SPACING;
-  return rowsHeight + spacings + ACTION_SECTION_PADDING * 2;
-}
+const ACTION_PANEL_WIDTH = 150;
+const ACTION_BADGE_HEIGHT = 26;
+const ACTION_BADGE_SPACING = 8;
+const ACTION_BADGE_FILL = "#ffd166";
+const ACTION_BADGE_STROKE = "rgba(0,0,0,0.08)";
+const ACTION_BADGE_TEXT = "#2d1f0b";
+const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_WIDTH + ACTION_GAP;
 
 let stage = null;
 let layer = null;
@@ -233,7 +229,6 @@ function drawGrafcetSteps() {
     nodeMetrics.set(step.name, {
       width: NODE_WIDTH,
       height: NODE_BODY_HEIGHT,
-      actionHeight: calculateActionStackHeight(step),
     });
   });
 
@@ -282,7 +277,7 @@ function drawGrafcetSteps() {
   });
 
   const layoutGroups = [];
-  let requiredWidth = NODE_WIDTH;
+  let requiredWidth = NODE_TOTAL_WIDTH;
   let requiredHeight = 0;
   let levelCursor = 40;
   const sortedLevels = [...levelGroups.keys()].sort((a, b) => a - b);
@@ -292,17 +287,13 @@ function drawGrafcetSteps() {
     if (!nodes.length) {
       return;
     }
-    const maxActionHeight = nodes.reduce((maxHeight, step) => {
-      const metrics = nodeMetrics.get(step.name);
-      return Math.max(maxHeight, metrics?.actionHeight ?? 0);
-    }, 0);
-    const levelHeight = NODE_BODY_HEIGHT + maxActionHeight;
+    const levelHeight = NODE_BODY_HEIGHT;
     const levelWidth =
-      nodes.length * NODE_WIDTH + Math.max(0, nodes.length - 1) * HORIZONTAL_GAP;
+      nodes.length * NODE_TOTAL_WIDTH + Math.max(0, nodes.length - 1) * HORIZONTAL_GAP;
     layoutGroups.push({
       level,
       nodes,
-      rowY: levelCursor + maxActionHeight,
+      rowY: levelCursor,
       levelHeight,
       levelWidth,
     });
@@ -317,19 +308,17 @@ function drawGrafcetSteps() {
 
   layoutGroups.forEach(({ nodes, rowY, levelWidth }) => {
     if (!nodes.length) return;
-    const rowWidth = levelWidth || NODE_WIDTH;
+    const rowWidth = levelWidth || NODE_TOTAL_WIDTH;
     const startX = stageCenterX - rowWidth / 2;
     nodes.forEach((step, index) => {
       const metrics = nodeMetrics.get(step.name);
       const nodeHeight = metrics?.height ?? NODE_BODY_HEIGHT;
-      const actionHeight = metrics?.actionHeight ?? 0;
-      const x = startX + index * (NODE_WIDTH + HORIZONTAL_GAP);
+      const x = startX + index * (NODE_TOTAL_WIDTH + HORIZONTAL_GAP);
       positions[step.name] = {
         x,
         y: rowY,
         width: NODE_WIDTH,
         height: nodeHeight,
-        actionHeight,
       };
     });
   });
@@ -418,38 +407,49 @@ function drawGrafcetSteps() {
     });
 
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionStackHeight = pos.actionHeight ?? 0;
-    const actionStartY = pos.y - actionStackHeight;
+    const actionBaseX = pos.x + pos.width + ACTION_GAP;
+    const actionBaseY = pos.y + (NODE_HEADER_HEIGHT - ACTION_BADGE_HEIGHT) / 2;
     actions.forEach((action, actionIdx) => {
       const actionY =
-        actionStartY + actionIdx * (ACTION_ROW_HEIGHT + ACTION_ROW_SPACING);
+        actionBaseY + actionIdx * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
       const actionRect = new Konva.Rect({
-        x: pos.x + ACTION_TEXT_MARGIN,
+        x: actionBaseX,
         y: actionY,
-        width: pos.width - ACTION_TEXT_MARGIN * 2,
-        height: ACTION_ROW_HEIGHT,
-        cornerRadius: 4,
-        fill: "#ffd166",
-        stroke: "rgba(0,0,0,0.08)",
+        width: ACTION_PANEL_WIDTH,
+        height: ACTION_BADGE_HEIGHT,
+        cornerRadius: 6,
+        fill: ACTION_BADGE_FILL,
+        stroke: ACTION_BADGE_STROKE,
         strokeWidth: 1,
       });
       const actionLabel = new Konva.Text({
-        x: actionRect.x() + 6,
-        y: actionRect.y() + 3,
+        x: actionRect.x() + ACTION_TEXT_MARGIN,
+        y: actionRect.y() + (ACTION_BADGE_HEIGHT - 12) / 2,
         text: action,
-        fontSize: 11,
-        fill: "#2d1f0b",
+        fontSize: 12,
+        fill: ACTION_BADGE_TEXT,
+        width: actionRect.width() - ACTION_TEXT_MARGIN * 2,
         align: "left",
-        width: actionRect.width() - 12,
       });
-      layer.add(actionRect, actionLabel);
+      const connector = new Konva.Line({
+        points: [
+          pos.x + pos.width,
+          pos.y + NODE_HEADER_HEIGHT / 2,
+          actionRect.x(),
+          actionRect.y() + ACTION_BADGE_HEIGHT / 2,
+        ],
+        stroke: "rgba(255,255,255,0.2)",
+        strokeWidth: 1,
+        dash: [6, 4],
+      });
+      layer.add(connector, actionRect, actionLabel);
     });
 
     let actionHint;
     if (!actions.length) {
       actionHint = new Konva.Text({
-        x: pos.x + ACTION_TEXT_MARGIN,
-        y: pos.y - ACTION_HINT_OFFSET - ACTION_ROW_HEIGHT,
+        x: actionBaseX,
+        y: actionBaseY,
         text: "doble clic → agregar acción",
         fontSize: 10,
         fill: "#9bb2d9",
