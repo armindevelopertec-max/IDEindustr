@@ -548,7 +548,41 @@ function drawGrafcetSteps() {
     if (count > 0) transitionsPerSource.set(stepItem.name, count);
   });
   const transitionCounter = {};
-  const branchOffsetsBySource = new Map();
+  const directionOffsets = new Map();
+  const directionSpacing = 22;
+
+  canvasState.steps.forEach((step) => {
+    const parentPos = positions[step.name];
+    if (!parentPos) return;
+    const transitions = step.transitions ?? [];
+    if (!transitions.length) return;
+    const startX = parentPos.x + (parentPos.stateWidth ?? NODE_WIDTH) / 2;
+    const leftGroup = [];
+    const rightGroup = [];
+    transitions.forEach((transition) => {
+      const targetPos = positions[transition.target];
+      if (!targetPos) return;
+      const targetCenter = targetPos.x + (targetPos.stateWidth ?? NODE_WIDTH) / 2;
+      if (targetCenter < startX) {
+        leftGroup.push(transition);
+      } else {
+        rightGroup.push(transition);
+      }
+    });
+    const assignOffsets = (group, sign) => {
+      group.forEach((transition, index) => {
+        const horizontalBias =
+          transitions.length === 1 ? 0 : sign * (index + 1) * directionSpacing;
+        const verticalBias = 4 + index;
+        directionOffsets.set(transition, {
+          horizontal: horizontalBias,
+          vertical: verticalBias,
+        });
+      });
+    };
+    assignOffsets(leftGroup, -1);
+    assignOffsets(rightGroup, 1);
+  });
 
   canvasState.steps.forEach((step) => {
     step.transitions?.forEach((transition) => {
@@ -567,14 +601,10 @@ function drawGrafcetSteps() {
       const targetStateWidth = target.stateWidth ?? NODE_WIDTH;
       const targetCenterX = target.x + targetStateWidth / 2;
       const targetEntryY = target.y;
-      if (!branchOffsetsBySource.has(step.name)) {
-        branchOffsetsBySource.set(step.name, createBranchOffsets(totalFromSource));
-      }
-      const offsets = branchOffsetsBySource.get(step.name);
-      const offsetY = offsets[idx] ?? 0;
-      const clampedBranchOffset = Math.max(Math.min(offsetY, 40), -40);
+      const branchBias = directionOffsets.get(transition) ?? { horizontal: 0, vertical: 0 };
+      const verticalBias = Math.min(Math.max(branchBias.vertical ?? 0, 0), 28);
       const horizontalY =
-        startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + clampedBranchOffset;
+        startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + verticalBias;
       const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
         ? stepLookup.get(transition.target)?.level
         : 0;
@@ -589,6 +619,7 @@ function drawGrafcetSteps() {
         : (horizontalY + finalTargetEntryY) / 2;
 
       const arrowStartX = startX + horizontalOffset;
+      const horizontalEntryX = targetCenterX + (branchBias.horizontal ?? 0);
       const points = shouldLoop
         ? buildLoopPoints(arrowStartX, startY, targetCenterX, finalTargetEntryY)
         : [
@@ -596,7 +627,7 @@ function drawGrafcetSteps() {
             startY,
             arrowStartX,
             horizontalY,
-            targetCenterX,
+            horizontalEntryX,
             horizontalY,
             targetCenterX,
             finalTargetEntryY,
@@ -722,17 +753,4 @@ function buildLoopPoints(startX, startY, targetX, targetY) {
     targetX,
     targetY,
   ];
-}
-
-function createBranchOffsets(count) {
-  if (count <= 1) {
-    return [0];
-  }
-  const spacing = 24;
-  const offsets = [];
-  const center = (count - 1) / 2;
-  for (let i = 0; i < count; i += 1) {
-    offsets.push((i - center) * spacing);
-  }
-  return offsets;
 }
