@@ -399,16 +399,6 @@ function drawGrafcetSteps() {
       fontStyle: "bold",
     });
 
-    const separator = new Konva.Line({
-      points: [
-        pos.x,
-        pos.y + NODE_HEADER_HEIGHT,
-        pos.x + stateWidth,
-        pos.y + NODE_HEADER_HEIGHT,
-      ],
-      stroke: "rgba(255,255,255,0.2)",
-      strokeWidth: 1,
-    });
 
     const actionPanelRect = new Konva.Rect({
       x: actionPanelX,
@@ -485,7 +475,7 @@ function drawGrafcetSteps() {
       }
     });
 
-    layer.add(stateRect, actionPanelRect, label, separator);
+    layer.add(stateRect, actionPanelRect, label);
     if (actionHint) {
       layer.add(actionHint);
     }
