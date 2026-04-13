@@ -621,11 +621,12 @@ function drawGrafcetSteps() {
         ? stepLookup.get(transition.target)?.level
         : 0;
       const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
+      const branchVertical = branchBias.vertical ?? 0;
       const isAscending = targetEntryY < startY;
       const directRise = startY + (isAscending ? 10 : 18);
       const horizontalY = shouldLoop
-        ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + verticalBias
-        : directRise;
+        ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + verticalBias + branchVertical
+        : directRise + branchVertical;
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
       const finalTargetEntryY =
@@ -637,15 +638,16 @@ function drawGrafcetSteps() {
 
       const branchHorizontal = branchBias.horizontal ?? 0;
       const arrowStartX = startX + horizontalOffset + branchHorizontal * 0.2;
+      const arrowStartY = startY + branchVertical * 0.6;
       const entryNudge = branchHorizontal
         ? Math.sign(branchHorizontal) * 10
         : 0;
       const horizontalEntryX = targetCenterX + scaledHorizontal + entryNudge;
       const points = shouldLoop
-        ? buildLoopPoints(arrowStartX, startY, targetCenterX, finalTargetEntryY)
+        ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY)
         : [
             arrowStartX,
-            startY,
+            arrowStartY,
             arrowStartX,
             horizontalY,
             horizontalEntryX,
