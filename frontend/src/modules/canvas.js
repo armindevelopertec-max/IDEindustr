@@ -661,7 +661,7 @@ function drawGrafcetSteps() {
         y: labelY,
         text: actuatorMatch ? "" : transition.condition,
         fontSize: 12,
-        fill: "#f5faff",
+        fill: shouldLoop ? loopColor : "#f5faff",
       });
 
       label.on("dblclick", () => {
