@@ -313,15 +313,17 @@ function drawGrafcetSteps() {
 
   while (queue.length) {
     const current = queue.shift();
+    if (!current) continue;
     const currentDepth = depthMap.get(current) ?? 0;
     const neighbors = adjacency.get(current) ?? [];
     neighbors.forEach((neighbor) => {
-      if (!depthMap.has(neighbor)) {
+      const existingDepth = depthMap.get(neighbor);
+      const shouldUpdate =
+        existingDepth === undefined || currentDepth + 1 < existingDepth;
+      if (shouldUpdate) {
         depthMap.set(neighbor, currentDepth + 1);
-      } else if ((depthMap.get(neighbor) ?? 0) > currentDepth + 1) {
-        depthMap.set(neighbor, currentDepth + 1);
+        queue.push(neighbor);
       }
-      queue.push(neighbor);
     });
   }
 
@@ -392,31 +394,6 @@ function drawGrafcetSteps() {
       if (index < nodes.length - 1) {
         currentX += HORIZONTAL_GAP;
       }
-    });
-  });
-
-  const parentChildren = new Map();
-  canvasState.steps.forEach((step) => {
-    step.transitions?.forEach((transition) => {
-      if (!parentChildren.has(step.name)) {
-        parentChildren.set(step.name, []);
-      }
-      parentChildren.get(step.name).push(transition.target);
-    });
-  });
-
-  parentChildren.forEach((children, parent) => {
-    if (children.length <= 1) return;
-    const parentPos = positions[parent];
-    if (!parentPos) return;
-    const centerOffset = (children.length - 1) / 2;
-    const baseSpacing = (parentPos.totalWidth ?? NODE_TOTAL_WIDTH) + 40;
-    children.forEach((childName, index) => {
-      const childPos = positions[childName];
-      if (!childPos) return;
-      childPos.x = parentPos.x + (index - centerOffset) * baseSpacing;
-      const totalWidth = childPos.totalWidth ?? NODE_TOTAL_WIDTH;
-      requiredWidth = Math.max(requiredWidth, childPos.x + totalWidth + 60);
     });
   });
 
@@ -595,13 +572,17 @@ function drawGrafcetSteps() {
       }
       const offsets = branchOffsetsBySource.get(step.name);
       const offsetY = offsets[idx] ?? 0;
+      const clampedBranchOffset = Math.max(Math.min(offsetY, 40), -40);
       const horizontalY =
-        startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + offsetY;
+        startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + clampedBranchOffset;
       const targetLevel = Number.isFinite(stepLookup.get(transition.target)?.level)
         ? stepLookup.get(transition.target)?.level
         : 0;
       const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
-      const finalTargetEntryY = targetEntryY + offsetY;
+      const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
+      const entryLimit = Math.max(0, nodeHeight / 2 - 6);
+      const entryOffset = Math.max(Math.min(offsetY, entryLimit), -entryLimit);
+      const finalTargetEntryY = targetEntryY + entryOffset;
 
       const verticalMidY = shouldLoop
         ? (startY + finalTargetEntryY) / 2
