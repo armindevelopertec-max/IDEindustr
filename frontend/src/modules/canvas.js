@@ -580,7 +580,7 @@ function drawGrafcetSteps() {
         : 0;
       const shouldLoop = targetLevel <= (Number.isFinite(step.level) ? step.level : 0);
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
-      const entryMargin = Math.min(10, Math.max(6, nodeHeight / 5));
+      const entryMargin = Math.min(5, Math.max(2, nodeHeight / 7));
       const finalTargetEntryY = targetEntryY + entryMargin;
 
       const verticalMidY = shouldLoop
