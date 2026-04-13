@@ -9,13 +9,16 @@ const LEVEL_VERTICAL_GAP = 70;
 const HORIZONTAL_GAP = 80;
 const ACTION_TEXT_MARGIN = 12;
 const ACTION_HINT_OFFSET = 12;
+const NODE_BODY_HEIGHT = NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2;
 
-function calculateNodeHeight(step) {
+function calculateActionStackHeight(step) {
   const actions = Array.isArray(step.actions) ? step.actions : [];
-  const actionsHeight = actions.length
-    ? actions.length * ACTION_ROW_HEIGHT + Math.max(0, actions.length - 1) * ACTION_ROW_SPACING
-    : 0;
-  return NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2 + actionsHeight;
+  if (!actions.length) {
+    return 0;
+  }
+  const rowsHeight = actions.length * ACTION_ROW_HEIGHT;
+  const spacings = Math.max(0, actions.length - 1) * ACTION_ROW_SPACING;
+  return rowsHeight + spacings + ACTION_SECTION_PADDING * 2;
 }
 
 let stage = null;
@@ -229,7 +232,8 @@ function drawGrafcetSteps() {
     adjacency.set(step.name, []);
     nodeMetrics.set(step.name, {
       width: NODE_WIDTH,
-      height: calculateNodeHeight(step),
+      height: NODE_BODY_HEIGHT,
+      actionHeight: calculateActionStackHeight(step),
     });
   });
 
@@ -288,19 +292,17 @@ function drawGrafcetSteps() {
     if (!nodes.length) {
       return;
     }
-    const levelHeight = nodes.reduce((maxHeight, step) => {
+    const maxActionHeight = nodes.reduce((maxHeight, step) => {
       const metrics = nodeMetrics.get(step.name);
-      return Math.max(
-        maxHeight,
-        metrics?.height ?? NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2,
-      );
-    }, NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2);
+      return Math.max(maxHeight, metrics?.actionHeight ?? 0);
+    }, 0);
+    const levelHeight = NODE_BODY_HEIGHT + maxActionHeight;
     const levelWidth =
       nodes.length * NODE_WIDTH + Math.max(0, nodes.length - 1) * HORIZONTAL_GAP;
     layoutGroups.push({
       level,
       nodes,
-      rowY: levelCursor,
+      rowY: levelCursor + maxActionHeight,
       levelHeight,
       levelWidth,
     });
@@ -318,14 +320,16 @@ function drawGrafcetSteps() {
     const rowWidth = levelWidth || NODE_WIDTH;
     const startX = stageCenterX - rowWidth / 2;
     nodes.forEach((step, index) => {
-      const nodeHeight =
-        nodeMetrics.get(step.name)?.height ?? NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING * 2;
+      const metrics = nodeMetrics.get(step.name);
+      const nodeHeight = metrics?.height ?? NODE_BODY_HEIGHT;
+      const actionHeight = metrics?.actionHeight ?? 0;
       const x = startX + index * (NODE_WIDTH + HORIZONTAL_GAP);
       positions[step.name] = {
         x,
         y: rowY,
         width: NODE_WIDTH,
         height: nodeHeight,
+        actionHeight,
       };
     });
   });
@@ -414,27 +418,38 @@ function drawGrafcetSteps() {
     });
 
     const actions = Array.isArray(step.actions) ? step.actions : [];
-    const actionStartY = pos.y + NODE_HEADER_HEIGHT + ACTION_SECTION_PADDING;
+    const actionStackHeight = pos.actionHeight ?? 0;
+    const actionStartY = pos.y - actionStackHeight;
     actions.forEach((action, actionIdx) => {
       const actionY =
         actionStartY + actionIdx * (ACTION_ROW_HEIGHT + ACTION_ROW_SPACING);
-      const actionText = new Konva.Text({
+      const actionRect = new Konva.Rect({
         x: pos.x + ACTION_TEXT_MARGIN,
         y: actionY,
-        text: action,
-        fontSize: 12,
         width: pos.width - ACTION_TEXT_MARGIN * 2,
-        fill: "#f5faff",
-        align: "left",
+        height: ACTION_ROW_HEIGHT,
+        cornerRadius: 4,
+        fill: "#ffd166",
+        stroke: "rgba(0,0,0,0.08)",
+        strokeWidth: 1,
       });
-      layer.add(actionText);
+      const actionLabel = new Konva.Text({
+        x: actionRect.x() + 6,
+        y: actionRect.y() + 3,
+        text: action,
+        fontSize: 11,
+        fill: "#2d1f0b",
+        align: "left",
+        width: actionRect.width() - 12,
+      });
+      layer.add(actionRect, actionLabel);
     });
 
     let actionHint;
     if (!actions.length) {
       actionHint = new Konva.Text({
         x: pos.x + ACTION_TEXT_MARGIN,
-        y: actionStartY + ACTION_ROW_HEIGHT / 2 - ACTION_HINT_OFFSET / 2,
+        y: pos.y - ACTION_HINT_OFFSET - ACTION_ROW_HEIGHT,
         text: "doble clic → agregar acción",
         fontSize: 10,
         fill: "#9bb2d9",
