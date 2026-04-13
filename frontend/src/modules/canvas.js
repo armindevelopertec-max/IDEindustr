@@ -588,12 +588,13 @@ function drawGrafcetSteps() {
         ? startY + Math.min(20, Math.max(12, entryMargin * 4))
         : (horizontalY + finalTargetEntryY) / 2;
 
+      const arrowStartX = startX + horizontalOffset;
       const points = shouldLoop
-        ? buildLoopPoints(startX + horizontalOffset, startY, targetCenterX, finalTargetEntryY)
+        ? buildLoopPoints(arrowStartX, startY, targetCenterX, finalTargetEntryY)
         : [
-            startX + horizontalOffset,
+            arrowStartX,
             startY,
-            startX + horizontalOffset,
+            arrowStartX,
             horizontalY,
             targetCenterX,
             horizontalY,
@@ -611,7 +612,7 @@ function drawGrafcetSteps() {
         tension: shouldLoop ? 0 : 0.5,
       });
 
-      const labelX = targetCenterX - 24;
+      const labelX = arrowStartX - 24;
       const labelY = verticalMidY - 8;
       const actuatorMatch = (transition.condition ?? "").match(
         /\b(start|stop|sensor|entrada|entrada1|entrada2)\b/i,
