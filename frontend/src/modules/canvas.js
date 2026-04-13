@@ -476,6 +476,16 @@ function drawGrafcetSteps() {
     const metrics = nodeMetrics.get(step.name);
     const actionPanelWidth = metrics?.actionPanelWidth ?? ACTION_PANEL_MIN_WIDTH;
     const actionPanelInnerWidth = actionPanelWidth - ACTION_PANEL_PADDING * 2;
+    const actionPanelRect = new Konva.Rect({
+      x: actionPanelX,
+      y: pos.y,
+      width: actionPanelWidth,
+      height: pos.height,
+      fill: ACTION_PANEL_FILL,
+      stroke: ACTION_PANEL_STROKE,
+      strokeWidth: 1,
+      cornerRadius: 8,
+    });
     const actionRows = metrics?.actionRows ?? [];
     const actionRowsHeight = metrics?.panelContentHeight ?? ACTION_BADGE_HEIGHT;
     const actionListTop = pos.y + (pos.height - actionRowsHeight) / 2;
@@ -506,10 +516,10 @@ function drawGrafcetSteps() {
           width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
           align: "left",
         });
-        layer.add(actionRect, actionLabel);
-        cursorX += item.width + ACTION_BADGE_SPACING;
-      });
+      layer.add(actionRect, actionLabel);
+      cursorX += item.width + ACTION_BADGE_SPACING;
     });
+  });
 
     let actionHint;
     if (!actions.length) {
