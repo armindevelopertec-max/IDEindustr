@@ -637,8 +637,8 @@ function drawGrafcetSteps() {
         : (horizontalY + finalTargetEntryY) / 2;
 
       const branchHorizontal = branchBias.horizontal ?? 0;
-      const arrowStartX = startX + horizontalOffset + branchHorizontal * 0.2;
-      const arrowStartY = startY + branchVertical * 0.6;
+      const arrowStartX = startX + horizontalOffset;
+      const arrowStartY = startY;
       const entryNudge = branchHorizontal
         ? Math.sign(branchHorizontal) * 10
         : 0;
