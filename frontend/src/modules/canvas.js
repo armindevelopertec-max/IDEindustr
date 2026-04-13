@@ -14,6 +14,8 @@ const ACTION_PANEL_STROKE = "rgba(255, 255, 255, 0.2)";
 const ACTION_ITEM_FILL = "#ffd166";
 const ACTION_ITEM_STROKE = "rgba(0,0,0,0.1)";
 const ACTION_ITEM_TEXT = "#2d1f0b";
+const ACTION_BADGE_HEIGHT = 26;
+const ACTION_BADGE_SPACING = 8;
 const NODE_TOTAL_WIDTH = NODE_WIDTH + ACTION_PANEL_WIDTH + ACTION_GAP;
 
 let stage = null;
