@@ -386,16 +386,16 @@ function drawGrafcetSteps() {
     });
   });
 
-  const horizontalSpacing = NODE_TOTAL_WIDTH + 40;
   parentChildren.forEach((children, parent) => {
     if (children.length <= 1) return;
     const parentPos = positions[parent];
     if (!parentPos) return;
     const centerOffset = (children.length - 1) / 2;
+    const baseSpacing = (parentPos.totalWidth ?? NODE_TOTAL_WIDTH) + 40;
     children.forEach((childName, index) => {
       const childPos = positions[childName];
       if (!childPos) return;
-      childPos.x = parentPos.x + (index - centerOffset) * horizontalSpacing;
+      childPos.x = parentPos.x + (index - centerOffset) * baseSpacing;
       const totalWidth = childPos.totalWidth ?? NODE_TOTAL_WIDTH;
       requiredWidth = Math.max(requiredWidth, childPos.x + totalWidth + 60);
     });
