@@ -274,12 +274,16 @@ textarea.editor-base {
 }
 
 /* CANVAS & VIEWS */
-.grafcet-canvas {
+.grafcet-canvas, .ladder-canvas {
   flex: 1;
   background: rgba(0, 0, 0, 0.3);
   margin: 0.5rem;
   border-radius: 0.75rem;
   border: 1px dashed var(--panel-border);
+}
+
+.ladder-canvas {
+  overflow-y: auto;
 }
 
 .dictionary-view {

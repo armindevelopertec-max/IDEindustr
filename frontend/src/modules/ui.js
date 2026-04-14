@@ -1,6 +1,7 @@
 import { setupGrafcetCanvas } from "./canvas.js";
 import { parseCnlText } from "./model.js";
 import { VariableMapper } from "./variables.js";
+import { LadderEngine } from "./ladder.js";
 
 const sampleCNL = "";
 
@@ -93,13 +94,7 @@ export function renderIDE(container) {
             </div>
 
             <div id="tab-ladder" class="tab-content">
-              <div class="placeholder-view">
-                <div class="coming-soon">
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18"/><path d="M17 3v18"/><path d="M7 8h10"/><path d="M7 12h10"/><path d="M7 16h10"/></svg>
-                  <h3>Lógica de Escalera</h3>
-                  <p>Módulo de generación de contactos en desarrollo.</p>
-                </div>
-              </div>
+              <div id="ladder-canvas" class="ladder-canvas"></div>
             </div>
           </div>
         </article>
@@ -157,6 +152,10 @@ export function renderIDE(container) {
         canvas1.renderSteps(canvas1.getState().steps);
       } else if (targetId === "tab-level2") {
         canvas2.renderSteps(canvas2.getState().steps);
+      } else if (targetId === "tab-ladder") {
+        const parsed = parseCnlText(cnlEditor.value);
+        const ir = LadderEngine.generateIR(parsed.steps);
+        LadderEngine.render("ladder-canvas", ir, VariableMapper);
       } else if (targetId === "tab-vars") {
         const parsed = parseCnlText(cnlEditor.value);
         VariableMapper.generateMappings(parsed.steps);
