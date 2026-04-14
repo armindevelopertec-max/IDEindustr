@@ -354,39 +354,35 @@ function drawGrafcetSteps() {
   });
 
   const depthMap = new Map();
+  const stepIndices = new Map(canvasState.steps.map((s, i) => [s.name, i]));
+  
   canvasState.steps.forEach((step) => {
-    depthMap.set(step.name, Number.POSITIVE_INFINITY);
+    depthMap.set(step.name, 0);
   });
-  const root = "S0";
-  const queue = [];
-  if (depthMap.has(root)) {
-    depthMap.set(root, 0);
-    queue.push(root);
-  } else if (canvasState.steps.length) {
-    depthMap.set(canvasState.steps[0].name, 0);
-    queue.push(canvasState.steps[0].name);
-  }
 
-  while (queue.length) {
-    const current = queue.shift();
-    if (!current) continue;
-    const currentDepth = depthMap.get(current) ?? 0;
-    const neighbors = adjacency.get(current) ?? [];
-    neighbors.forEach((neighbor) => {
-      const existingDepth = depthMap.get(neighbor);
-      const shouldUpdate =
-        existingDepth === undefined || currentDepth + 1 < existingDepth;
-      if (shouldUpdate) {
-        depthMap.set(neighbor, currentDepth + 1);
-        queue.push(neighbor);
-      }
+  // Propagación de niveles respetando el orden del array para evitar ciclos
+  // y asegurar que los pasos posteriores estén en niveles inferiores.
+  for (let i = 0; i < canvasState.steps.length; i++) {
+    let changed = false;
+    canvasState.steps.forEach((step) => {
+      const sourceDepth = depthMap.get(step.name);
+      (step.transitions ?? []).forEach((t) => {
+        const sourceIdx = stepIndices.get(step.name);
+        const targetIdx = stepIndices.get(t.target);
+        if (targetIdx > sourceIdx) {
+          const currentTargetDepth = depthMap.get(t.target);
+          if (currentTargetDepth < sourceDepth + 1) {
+            depthMap.set(t.target, sourceDepth + 1);
+            changed = true;
+          }
+        }
+      });
     });
+    if (!changed) break;
   }
 
   canvasState.steps.forEach((step) => {
-    const depth = Number.isFinite(depthMap.get(step.name))
-      ? depthMap.get(step.name)
-      : 0;
+    const depth = depthMap.get(step.name);
     if (!levelGroups.has(depth)) {
       levelGroups.set(depth, []);
     }
@@ -394,6 +390,7 @@ function drawGrafcetSteps() {
   });
 
   const layoutGroups = [];
+  const levelMetrics = new Map(); // Para guardar rowY y height por nivel
   let requiredWidth = NODE_TOTAL_WIDTH;
   let requiredHeight = 0;
   let levelCursor = 40;
@@ -401,19 +398,20 @@ function drawGrafcetSteps() {
 
   sortedLevels.forEach((level) => {
     const nodes = levelGroups.get(level) ?? [];
-    if (!nodes.length) {
-      return;
-    }
+    if (!nodes.length) return;
+    
     const levelHeight = nodes.reduce((maxHeight, step) => {
       const metrics = nodeMetrics.get(step.name);
       return Math.max(maxHeight, metrics?.height ?? NODE_BODY_HEIGHT);
     }, NODE_BODY_HEIGHT);
+
     const levelWidth = nodes.reduce((acc, step, idx) => {
       const metrics = nodeMetrics.get(step.name);
       const nodeWidth = metrics?.totalWidth ?? NODE_TOTAL_WIDTH;
       const gap = idx < nodes.length - 1 ? HORIZONTAL_GAP : 0;
       return acc + nodeWidth + gap;
     }, 0);
+
     layoutGroups.push({
       level,
       nodes,
@@ -421,6 +419,9 @@ function drawGrafcetSteps() {
       levelHeight,
       levelWidth,
     });
+
+    levelMetrics.set(level, { rowY: levelCursor, height: levelHeight });
+    
     requiredWidth = Math.max(requiredWidth, levelWidth);
     requiredHeight = Math.max(requiredHeight, levelCursor + levelHeight);
     levelCursor += levelHeight + LEVEL_VERTICAL_GAP;
@@ -658,17 +659,20 @@ function drawGrafcetSteps() {
       const shouldLoop = targetLevel <= sourceLevel;
 
       const isAscending = targetEntryY < startY;
-      const directRise = startY + (isAscending ? 10 : 18);
       const loopBias = loopOffsetsBySource.get(transition) ?? {
         offset: 0,
         verticalOffset: 0,
       };
 
+      // Cálculo de horizontalY: si es hacia adelante, usar el punto medio del espacio bajo el nivel actual
+      const sourceLevelMetrics = levelMetrics.get(sourceLevel);
       const horizontalY = transition.manualY !== null 
         ? transition.manualY 
         : (shouldLoop 
             ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + loopBias.verticalOffset
-            : directRise);
+            : (sourceLevelMetrics 
+                ? sourceLevelMetrics.rowY + sourceLevelMetrics.height + LEVEL_VERTICAL_GAP / 2 + loopBias.verticalOffset
+                : startY + 25));
 
       const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
       const entryMargin = Math.min(8, Math.max(3, nodeHeight / 6));
@@ -688,14 +692,14 @@ function drawGrafcetSteps() {
             targetCenterX, finalTargetEntryY,
           ];
 
-      const loopColor = shouldLoop ? getStateColor(transition.target) : "#ffffff";
+      const arrowColor = getStateColor(transition.target);
 
       const arrow = new Konva.Arrow({
         points,
         pointerLength: 10,
         pointerWidth: 10,
-        stroke: loopColor,
-        fill: loopColor,
+        stroke: arrowColor,
+        fill: arrowColor,
         strokeWidth: 2,
         tension: 0,
         opacity: 0.8,
@@ -704,7 +708,7 @@ function drawGrafcetSteps() {
       // Handle para estirar la línea
       const handle = new Konva.Circle({
         radius: 5,
-        fill: loopColor,
+        fill: arrowColor,
         draggable: true,
         stroke: "white",
         strokeWidth: 1,
@@ -732,21 +736,21 @@ function drawGrafcetSteps() {
 
       handle.on("dragend", () => drawGrafcetSteps());
 
+      const labelValue = {
+        targetId: transition.target,
+        text: transition.condition ?? "AUTO",
+        x: targetCenterX,
+        y: finalTargetEntryY - 14,
+        originalTransition: transition,
+        color: arrowColor // Pasamos el color aquí
+      };
+
       if (shouldLoop) {
-        const labelText = transition.condition ?? "AUTO";
-        const width = Math.max(measureTextWidth(labelText), 40);
         const bucket = loopLabelBuckets.get(transition.source) ?? [];
-        bucket.push({ text: labelText, color: loopColor, width });
+        bucket.push({ text: labelValue.text, color: arrowColor, width: Math.max(measureTextWidth(labelValue.text), 40) });
         loopLabelBuckets.set(transition.source, bucket);
       } else {
-        // Guardar etiqueta normal para dibujarla después de todas las flechas
-        normalLabels.push({
-          targetId: transition.target,
-          text: transition.condition ?? "AUTO",
-          x: targetCenterX,
-          y: finalTargetEntryY - 14, // Un poco más arriba de la punta
-          originalTransition: transition
-        });
+        normalLabels.push(labelValue);
       }
 
       layer.add(arrow, handle);
@@ -785,7 +789,7 @@ function drawGrafcetSteps() {
         text: textValue,
         fontSize: 11,
         fontStyle: "bold",
-        fill: "#f5faff",
+        fill: label.color ?? "#f5faff", // Usamos el color de la flecha
         width: width,
         align: "center",
       });
