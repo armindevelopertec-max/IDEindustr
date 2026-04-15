@@ -1,9 +1,7 @@
 # Compilador Industrial IDE 🚀
 
 <div align="center">
-  <a href="https://www.facebook.com/reel/2184463032089020" target="_blank">
-    <img src="https://img.shields.io/badge/VER_DEMO_EN_VÍDEO-Click_Aquí-blue?style=for-the-badge&logo=facebook&logoColor=white" alt="Demo en Video">
-  </a>
+  <video src="https://github.com/armindevelopertec-max/IDEindustr/raw/main/fastIDE.mp4" width="100%" controls></video>
 </div>
 
 ---
