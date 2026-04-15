@@ -562,7 +562,8 @@ export function setupGrafcetCanvas(containerId) {
               targetCenterX, finalTargetEntryY,
             ];
 
-        const arrowColor = getStateColor(transition.target);
+        const baseArrowColor = getStateColor(transition.target);
+        const arrowColor = transition.met ? "#4df59f" : baseArrowColor;
 
         const arrow = new Konva.Arrow({
           points,
@@ -570,9 +571,11 @@ export function setupGrafcetCanvas(containerId) {
           pointerWidth: 10,
           stroke: arrowColor,
           fill: arrowColor,
-          strokeWidth: 2,
+          strokeWidth: transition.met ? 4 : 2,
           tension: 0,
-          opacity: 0.8,
+          opacity: transition.met ? 1 : 0.8,
+          shadowColor: transition.met ? "#4df59f" : "transparent",
+          shadowBlur: transition.met ? 10 : 0,
         });
 
         const handle = new Konva.Circle({
@@ -616,7 +619,12 @@ export function setupGrafcetCanvas(containerId) {
 
         if (shouldLoop) {
           const bucket = loopLabelBuckets.get(transition.source) ?? [];
-          bucket.push({ text: labelValue.text, color: arrowColor, width: Math.max(measureTextWidth(labelValue.text), 40) });
+          bucket.push({ 
+            text: labelValue.text, 
+            color: arrowColor, 
+            width: Math.max(measureTextWidth(labelValue.text), 40),
+            met: transition.met
+          });
           loopLabelBuckets.set(transition.source, bucket);
         } else {
           normalLabels.push(labelValue);
@@ -640,15 +648,18 @@ export function setupGrafcetCanvas(containerId) {
         const textValue = label.text;
         const width = Math.max(measureTextWidth(textValue), 48);
 
+        const isMet = label.originalTransition?.met;
         const labelBg = new Konva.Rect({
           x: label.x + offset - width / 2 - 4,
           y: label.y - 12,
           width: width + 8,
           height: 18,
-          fill: "rgba(5, 12, 25, 0.95)",
+          fill: isMet ? "rgba(77, 245, 159, 0.2)" : "rgba(5, 12, 25, 0.95)",
           cornerRadius: 4,
-          stroke: "#ffffff44",
-          strokeWidth: 1.5,
+          stroke: isMet ? "#4df59f" : "#ffffff44",
+          strokeWidth: isMet ? 2 : 1.5,
+          shadowColor: isMet ? "#4df59f" : "transparent",
+          shadowBlur: isMet ? 5 : 0,
         });
 
         const labelText = new Konva.Text({
@@ -677,10 +688,12 @@ export function setupGrafcetCanvas(containerId) {
           y: currentY,
           width: entry.width + 8,
           height: 18,
-          fill: "rgba(5, 12, 25, 0.95)",
+          fill: entry.met ? "rgba(77, 245, 159, 0.2)" : "rgba(5, 12, 25, 0.95)",
           cornerRadius: 4,
-          stroke: "#ffffff88",
-          strokeWidth: 1,
+          stroke: entry.met ? "#4df59f" : "#ffffff88",
+          strokeWidth: entry.met ? 2 : 1,
+          shadowColor: entry.met ? "#4df59f" : "transparent",
+          shadowBlur: entry.met ? 5 : 0,
         });
         const text = new Konva.Text({
           x: baseX + 4,
@@ -708,7 +721,11 @@ export function setupGrafcetCanvas(containerId) {
   }
 
   function buildModelSignature(steps) {
-    return steps.map((s) => s.name).join("|");
+    return JSON.stringify(steps.map(s => ({
+      n: s.name,
+      p: s.position,
+      t: (s.transitions || []).map(t => ({x: t.manualX, y: t.manualY}))
+    })));
   }
 
   function buildLoopPoints(startX, startY, targetX, targetY, loopOffset = 0, manualX = null) {

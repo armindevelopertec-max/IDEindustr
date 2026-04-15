@@ -118,6 +118,10 @@ body {
   flex-direction: column;
 }
 
+.main-display-card {
+  position: relative;
+}
+
 /* CARDS */
 .ide-card {
   background: var(--bg-panel);
@@ -438,3 +442,85 @@ textarea.editor-base {
 .token.keyword { color: #61e4ff; font-weight: 700; }
 .token.state { color: var(--node-active); font-weight: 600; }
 .token.variable { color: var(--highlight-yellow); font-weight: 600; }
+
+/* EMULATION PANEL (INTEGRADO) */
+.emulation-panel {
+  display: flex;
+  flex-direction: column;
+  background: rgba(2, 6, 17, 0.4);
+  border-bottom: 1px solid var(--node-active);
+  width: 100%;
+  animation: slideIn 0.2s ease-out;
+}
+
+.emulation-panel.hidden {
+  display: none;
+}
+
+@keyframes slideIn {
+  from { height: 0; opacity: 0; }
+  to { height: auto; opacity: 1; }
+}
+
+.panel-header {
+  padding: 0.4rem 1rem;
+  background: rgba(77, 245, 159, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  justify-content: center;
+}
+
+.panel-header span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: var(--node-active);
+  letter-spacing: 1px;
+}
+
+.input-controls {
+  padding: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: center;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.input-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--panel-border);
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.1s;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.input-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.input-btn.active {
+  background: rgba(77, 245, 159, 0.2);
+  color: var(--node-active);
+  border-color: var(--node-active);
+  box-shadow: 0 0 15px rgba(77, 245, 159, 0.4), inset 0 0 10px rgba(77, 245, 159, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-run.active {
+  background: #ff5050;
+  border-color: #ff8080;
+  color: #fff;
+}
+
+.btn-run.active:hover {
+  background: #ff3333;
+}

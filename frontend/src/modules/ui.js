@@ -2,6 +2,7 @@ import { setupGrafcetCanvas } from "./canvas.js";
 import { parseCnlText } from "./model.js";
 import { VariableMapper } from "./variables.js";
 import { LadderEngine } from "./ladder.js";
+import { GrafcetEmulator } from "./emulator.js";
 
 const sampleCNL = "";
 
@@ -9,6 +10,7 @@ let currentFileName = "Sin título.cnl";
 let fileHandle = null;
 let grafcetCanvas = null; 
 let activeTab = "tab-level1";
+let isEmulating = false;
 
 export function renderIDE(container) {
   container.innerHTML = `
@@ -27,6 +29,10 @@ export function renderIDE(container) {
             <span id="current-filename" class="filename-display">${currentFileName}</span>
           </div>
           <div class="button-group">
+            <button id="btn-run" class="btn-icon btn-run" title="Ejecutar Emulación">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Run
+            </button>
             <button id="btn-new" class="btn-icon" title="Nuevo (Ctrl+N)">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>
               Nuevo
@@ -45,7 +51,6 @@ export function renderIDE(container) {
       </div>
     </nav>
     <section class="ide-main">
-      <!-- PANEL IZQUIERDO: EDITOR -->
       <aside class="ide-panel-left">
         <article class="ide-card editor-card">
           <header class="card-header">
@@ -68,7 +73,6 @@ export function renderIDE(container) {
         </article>
       </aside>
 
-      <!-- PANEL DERECHO: TABS -->
       <main class="ide-panel-right">
         <article class="ide-card main-display-card">
           <header class="card-header with-tabs">
@@ -80,6 +84,13 @@ export function renderIDE(container) {
             </div>
           </header>
           
+          <div id="emulation-panel" class="emulation-panel hidden">
+            <div class="panel-header">
+              <span>CONTROLES DE ENTRADA (MANTENER PARA ACTIVAR)</span>
+            </div>
+            <div id="input-controls" class="input-controls"></div>
+          </div>
+
           <div class="tab-content-container">
             <div id="tab-level1" class="tab-content active">
               <div id="grafcet-canvas-1" class="grafcet-canvas"></div>
@@ -107,6 +118,8 @@ export function renderIDE(container) {
   const errorContainer = document.getElementById("editor-errors");
   const fileInput = document.getElementById("file-input");
   const filenameDisplay = document.getElementById("current-filename");
+  const emulationPanel = document.getElementById("emulation-panel");
+  const inputControls = document.getElementById("input-controls");
 
   const canvas1 = setupGrafcetCanvas("grafcet-canvas-1");
   const canvas2 = setupGrafcetCanvas("grafcet-canvas-2");
@@ -141,13 +154,18 @@ export function renderIDE(container) {
       activeTab = targetId;
       
       tabs.forEach(t => t.classList.remove("active"));
-      contents.forEach(c => c.classList.remove("active"));
+      contents.forEach(c => {
+          c.classList.remove("active");
+          if (c.id === targetId) c.classList.add("active");
+      });
       
       tab.classList.add("active");
-      const targetContent = document.getElementById(targetId);
-      targetContent.classList.add("active");
 
-      // Redibujar el canvas correspondiente si es necesario
+      if (isEmulating) {
+        updateEmulationView();
+        return;
+      }
+
       if (targetId === "tab-level1") {
         canvas1.renderSteps(canvas1.getState().steps);
       } else if (targetId === "tab-level2") {
@@ -164,6 +182,105 @@ export function renderIDE(container) {
     });
   });
 
+  const btnRun = document.getElementById("btn-run");
+  btnRun.addEventListener("click", toggleEmulation);
+
+  function toggleEmulation() {
+    isEmulating = !isEmulating;
+    btnRun.classList.toggle("active", isEmulating);
+    btnRun.innerHTML = isEmulating 
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg> Stop`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
+    
+    const steps = getStepsWithLiveLayout();
+    GrafcetEmulator.setPlay(isEmulating, steps);
+    
+    if (isEmulating) {
+        emulationPanel.classList.remove("hidden");
+        renderInputControls();
+        updateEmulationView();
+    } else {
+        emulationPanel.classList.add("hidden");
+        const steps = getStepsWithLiveLayout();
+        grafcetCanvas.renderSteps(steps);
+        // También actualizamos los errores por si acaso
+        const parsed = parseCnlText(cnlEditor.value);
+        renderErrors(parsed.errors);
+    }
+  }
+
+  function getStepsWithLiveLayout() {
+    const parsed = parseCnlText(cnlEditor.value);
+    const liveLayout = canvas1.getState().steps;
+    
+    return parsed.steps.map(s => {
+      const live = liveLayout.find(l => l.name === s.name);
+      if (live) {
+        return {
+          ...s,
+          position: live.position,
+          transitions: s.transitions.map(t => {
+            const lt = live.transitions?.find(lt => lt.target === t.target && lt.condition === t.condition);
+            return lt ? { ...t, manualX: lt.manualX, manualY: lt.manualY } : t;
+          })
+        };
+      }
+      return s;
+    });
+  }
+
+  function renderInputControls() {
+    inputControls.innerHTML = "";
+    Object.keys(GrafcetEmulator.inputs).forEach(name => {
+        const btn = document.createElement("button");
+        btn.className = "input-btn";
+        if (GrafcetEmulator.inputs[name]) btn.classList.add("active");
+        btn.textContent = name;
+        
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            const newState = !GrafcetEmulator.inputs[name];
+            GrafcetEmulator.setInput(name, newState);
+            
+            if (newState) btn.classList.add("active");
+            else btn.classList.remove("active");
+
+            const steps = getStepsWithLiveLayout();
+            let iterations = 0;
+            let changed = false;
+            while (GrafcetEmulator.tick(steps) && iterations < 50) {
+                changed = true;
+                iterations++;
+            }
+            if (changed) updateEmulationView();
+        });
+
+        inputControls.appendChild(btn);
+    });
+  }
+
+  function updateEmulationView() {
+    const steps = getStepsWithLiveLayout();
+    const emulatedSteps = GrafcetEmulator.getUpdateSteps(steps);
+    
+    if (activeTab === "tab-level1") {
+        canvas1.renderSteps(emulatedSteps);
+    } else if (activeTab === "tab-level2") {
+        const translated = emulatedSteps.map(step => ({
+            ...step,
+            name: VariableMapper.translate(step.name),
+            actions: (step.actions || []).map(a => VariableMapper.translate(a)),
+            transitions: (step.transitions || []).map(t => ({
+              ...t,
+              source: VariableMapper.translate(t.source),
+              target: VariableMapper.translate(t.target),
+              condition: VariableMapper.translateList(t.condition)
+            }))
+        }));
+        canvas2.renderSteps(translated);
+    }
+  }
+
   document.getElementById("btn-new").addEventListener("click", newFile);
   document.getElementById("btn-open").addEventListener("click", handleOpenRequest);
   document.getElementById("btn-save").addEventListener("click", saveFile);
@@ -179,7 +296,6 @@ export function renderIDE(container) {
         handleOpenRequest();
       } else if (e.key.toLowerCase() === "n") {
         e.preventDefault();
-        newFile();
       }
     }
   });
@@ -188,6 +304,7 @@ export function renderIDE(container) {
     if (cnlEditor.value && !confirm("¿Nuevo archivo? Se perderán los cambios no guardados.")) {
       return;
     }
+    if (isEmulating) toggleEmulation(); // Detener emulación si está activa
     cnlEditor.value = "";
     currentFileName = "Sin título.cnl";
     fileHandle = null;
@@ -207,7 +324,7 @@ export function renderIDE(container) {
         const text = await file.text();
         loadContentIntoEditor(text, file.name);
       } catch (err) {
-        console.warn("Apertura cancelada o no soportada.");
+        console.warn("Apertura cancelada.");
       }
     } else {
       fileInput.click();
@@ -230,19 +347,18 @@ export function renderIDE(container) {
     cnlEditor.value = cleanText;
     currentFileName = fileName || currentFileName;
     updateFilenameDisplay();
-    
     updateHighlight(cleanText);
     applyParser(fullText);
     autoSave(fullText);
   }
 
   async function saveFile() {
-    const canvasStateData = grafcetCanvas.getState();
+    const canvasStateData = canvas1.getState();
     const layoutMeta = {};
     canvasStateData.steps.forEach(s => {
-      layoutMeta[s.name] = {
+      layoutMeta[s.name] = { 
         position: s.position,
-        transitions: s.transitions.map(t => ({
+        transitions: (s.transitions || []).map(t => ({
           target: t.target,
           condition: t.condition,
           manualX: t.manualX,
@@ -255,46 +371,43 @@ export function renderIDE(container) {
     const cleanText = cnlEditor.value.replace(/\/\* LAYOUT_DATA: .* \*\//, "").trim();
     const content = cleanText + metadataBlock;
     
-    if (fileHandle && window.showSaveFilePicker) {
+    // Si no tenemos handle y el navegador soporta la API moderna, pedimos dónde guardar
+    if (!fileHandle && window.showSaveFilePicker) {
+      try {
+        fileHandle = await window.showSaveFilePicker({
+          suggestedName: currentFileName,
+          types: [{ description: "Archivos CNL", accept: { "text/plain": [".cnl", ".txt"] } }],
+        });
+        currentFileName = fileHandle.name;
+        updateFilenameDisplay();
+      } catch (err) {
+        console.warn("Guardado cancelado por el usuario.");
+        return;
+      }
+    }
+
+    // Si tenemos handle (ya sea de antes o recién creado), sobreescribimos
+    if (fileHandle) {
       try {
         const writable = await fileHandle.createWritable();
         await writable.write(content);
         await writable.close();
         showSaveVisualFeedback();
-        localStorage.setItem("autosave_cnl", content);
         return;
       } catch (err) {
-        console.error("Error al sobreescribir:", err);
+        console.error("Error al guardar en el archivo:", err);
       }
     }
 
-    if (window.showSaveFilePicker) {
-      try {
-        const handle = await window.showSaveFilePicker({
-          suggestedName: currentFileName,
-          types: [{ description: "Archivo CNL", accept: { "text/plain": [".cnl"] } }],
-        });
-        fileHandle = handle;
-        currentFileName = handle.name;
-        const writable = await handle.createWritable();
-        await writable.write(content);
-        await writable.close();
-        updateFilenameDisplay();
-        showSaveVisualFeedback();
-      } catch (err) {
-        console.warn("Guardado cancelado.");
-      }
-    } else {
-      const blob = new Blob([content], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = currentFileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
-    
-    localStorage.setItem("autosave_cnl", content);
+    // Fallback: Descarga tradicional (solo si el navegador no soporta File System Access API)
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = currentFileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showSaveVisualFeedback();
   }
 
   function showSaveVisualFeedback() {
@@ -348,6 +461,7 @@ export function renderIDE(container) {
   }
 
   function applyParser(text) {
+    if (isEmulating) return; 
     const parsed = parseCnlText(text);
     grafcetCanvas?.renderSteps(parsed.steps);
     renderErrors(parsed.errors);
@@ -360,25 +474,8 @@ export function renderIDE(container) {
   function handleRealtimeInput(event) {
     const text = event.target?.value ?? "";
     updateHighlight(text);
-    const canvasStateData = grafcetCanvas?.getState();
-    let metadataBlock = "";
-    if (canvasStateData) {
-      const layoutMeta = {};
-      canvasStateData.steps.forEach(s => {
-        layoutMeta[s.name] = {
-          position: s.position,
-          transitions: s.transitions.map(t => ({
-            target: t.target,
-            condition: t.condition,
-            manualX: t.manualX,
-            manualY: t.manualY
-          }))
-        };
-      });
-      metadataBlock = `\n/* LAYOUT_DATA: ${JSON.stringify(layoutMeta)} */`;
-    }
-    autoSave(text + metadataBlock);
-    scheduleParseLogic(text + metadataBlock);
+    autoSave(text);
+    scheduleParseLogic(text);
   }
 
   cnlEditor?.addEventListener("input", handleRealtimeInput);
