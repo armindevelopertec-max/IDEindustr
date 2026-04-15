@@ -1,6 +1,6 @@
 # Compilador Industrial IDE 🚀
 
-https://github.com/armindevelopertec-max/IDEindustr/blob/main/fastIDE.mp4?raw=true
+![fastIDE](fastIDE.mp4)
 
 Un entorno de desarrollo integrado (IDE) moderno para la automatización industrial, diseñado para programar, visualizar y emular lógica **GRAFCET** mediante un lenguaje de alto nivel llamado **CNL (Compiler Network Logic)**.
 
