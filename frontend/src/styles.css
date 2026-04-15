@@ -524,3 +524,44 @@ textarea.editor-base {
 .btn-run.active:hover {
   background: #ff3333;
 }
+
+/* VARIABLE DISPLAY IN EMULATION */
+.vars-header {
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 0.5rem;
+}
+
+.variable-display {
+  padding: 0.75rem 1rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  min-height: 40px;
+}
+
+.var-badge {
+  background: rgba(97, 228, 255, 0.1);
+  border: 1px solid rgba(97, 228, 255, 0.2);
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  display: flex;
+  gap: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.8rem;
+}
+
+.var-name {
+  color: #61e4ff;
+  font-weight: bold;
+}
+
+.var-value {
+  color: #fff;
+}
+
+.no-vars {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.3);
+  font-style: italic;
+}

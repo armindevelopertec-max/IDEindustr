@@ -212,7 +212,7 @@ export function setupGrafcetCanvas(containerId) {
             actionRows[rowIndex] = { items: [], rowWidth: 0 };
           }
           const row = actionRows[rowIndex];
-          row.items.push({ text: action, width: badgeWidth });
+          row.items.push({ text: action, width: badgeWidth, originalIndex: idx });
           row.rowWidth += badgeWidth + (row.items.length > 1 ? ACTION_BADGE_SPACING : 0);
         });
       }
@@ -442,23 +442,29 @@ export function setupGrafcetCanvas(containerId) {
           const rowY = actionListTop + rowIndex * (ACTION_BADGE_HEIGHT + ACTION_BADGE_SPACING);
           const rowStartX = actionPanelX + ACTION_PANEL_PADDING + Math.max((actionPanelInnerWidth - row.rowWidth) / 2, 0);
           let cursorX = rowStartX;
-          row.items.forEach((item) => {
+          row.items.forEach((item, itemIdx) => {
+            const isLit = step.activeActions ? step.activeActions[item.originalIndex]?.lit : false;
+            
             const actionRect = new Konva.Rect({
               x: cursorX,
               y: rowY,
               width: item.width,
               height: ACTION_BADGE_HEIGHT,
-              fill: ACTION_ITEM_FILL,
-              stroke: ACTION_ITEM_STROKE,
-              strokeWidth: 1,
+              fill: isLit ? "#4df59f" : ACTION_ITEM_FILL,
+              stroke: isLit ? "rgba(255,255,255,0.5)" : ACTION_ITEM_STROKE,
+              strokeWidth: isLit ? 2 : 1,
               cornerRadius: 4,
+              shadowColor: isLit ? "#4df59f" : "transparent",
+              shadowBlur: isLit ? 10 : 0,
+              shadowOpacity: 0.5
             });
             const actionLabel = new Konva.Text({
               x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
-              y: actionRect.y() + 4,
+              y: actionRect.y() + (ACTION_BADGE_HEIGHT - ACTION_FONT_SIZE) / 2,
               text: item.text,
               fontSize: ACTION_FONT_SIZE,
-              fill: ACTION_ITEM_TEXT,
+              fontStyle: isLit ? "bold" : "normal",
+              fill: isLit ? "#041725" : ACTION_ITEM_TEXT,
               width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
               align: "left",
             });
@@ -541,7 +547,7 @@ export function setupGrafcetCanvas(containerId) {
           : (shouldLoop 
               ? startY + Math.max(50, Math.abs(targetEntryY - startY) / 2) + loopBias.verticalOffset
               : (sourceLevelMetrics 
-                  ? sourceLevelMetrics.rowY + sourceLevelMetrics.height + LEVEL_VERTICAL_GAP / 2 + loopBias.verticalOffset
+                  ? sourceLevelMetrics.rowY + sourceLevelMetrics.height + (LEVEL_VERTICAL_GAP / 2) + loopBias.verticalOffset
                   : startY + 25));
 
         const nodeHeight = target.height ?? NODE_BODY_HEIGHT;
@@ -554,7 +560,7 @@ export function setupGrafcetCanvas(containerId) {
         const arrowStartY = startY + (shouldLoop ? loopBias.verticalOffset : 0);
 
         const points = shouldLoop
-          ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX)
+          ? buildLoopPoints(arrowStartX, arrowStartY, targetCenterX, finalTargetEntryY, loopBias.offset, transition.manualX, transition.manualY)
           : [
               arrowStartX, arrowStartY,
               arrowStartX, horizontalY,

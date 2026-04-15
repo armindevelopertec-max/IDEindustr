@@ -86,9 +86,14 @@ export function renderIDE(container) {
           
           <div id="emulation-panel" class="emulation-panel hidden">
             <div class="panel-header">
-              <span>CONTROLES DE ENTRADA (MANTENER PARA ACTIVAR)</span>
+              <span>CONTROLES DE ENTRADA</span>
             </div>
             <div id="input-controls" class="input-controls"></div>
+            
+            <div class="panel-header vars-header">
+              <span>VARIABLES Y TIEMPOS</span>
+            </div>
+            <div id="variable-display" class="variable-display"></div>
           </div>
 
           <div class="tab-content-container">
@@ -123,6 +128,11 @@ export function renderIDE(container) {
 
   const canvas1 = setupGrafcetCanvas("grafcet-canvas-1");
   const canvas2 = setupGrafcetCanvas("grafcet-canvas-2");
+
+  // Suscribirse a cambios de posición para guardar automáticamente
+  canvas1.subscribe(() => {
+    if (!isEmulating) autoSave(cnlEditor.value);
+  });
   
   grafcetCanvas = {
     renderSteps: (steps) => {
@@ -193,7 +203,11 @@ export function renderIDE(container) {
         : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg> Run`;
     
     const steps = getStepsWithLiveLayout();
-    GrafcetEmulator.setPlay(isEmulating, steps);
+    
+    // El emulador ahora acepta un callback para actualizar la vista en cada tick
+    GrafcetEmulator.setPlay(isEmulating, steps, () => {
+        updateEmulationView();
+    });
     
     if (isEmulating) {
         emulationPanel.classList.remove("hidden");
@@ -203,7 +217,6 @@ export function renderIDE(container) {
         emulationPanel.classList.add("hidden");
         const steps = getStepsWithLiveLayout();
         grafcetCanvas.renderSteps(steps);
-        // También actualizamos los errores por si acaso
         const parsed = parseCnlText(cnlEditor.value);
         renderErrors(parsed.errors);
     }
@@ -244,25 +257,45 @@ export function renderIDE(container) {
             
             if (newState) btn.classList.add("active");
             else btn.classList.remove("active");
-
-            const steps = getStepsWithLiveLayout();
-            let iterations = 0;
-            let changed = false;
-            while (GrafcetEmulator.tick(steps) && iterations < 50) {
-                changed = true;
-                iterations++;
-            }
-            if (changed) updateEmulationView();
+            updateEmulationView();
         });
 
         inputControls.appendChild(btn);
     });
   }
 
+  function renderVariableDisplay() {
+    const varDisplay = document.getElementById("variable-display");
+    const varsHeader = document.querySelector(".vars-header");
+    if (!varDisplay) return;
+
+    const vars = GrafcetEmulator.getLiveVariables();
+    const hasVars = Object.keys(vars).length > 0;
+
+    if (varsHeader) {
+        if (hasVars) varsHeader.classList.remove("hidden");
+        else varsHeader.classList.add("hidden");
+    }
+
+    if (!hasVars) {
+        varDisplay.innerHTML = "";
+        return;
+    }
+
+    varDisplay.innerHTML = Object.entries(vars).map(([name, val]) => `
+        <div class="var-badge">
+            <span class="var-name">${name}:</span>
+            <span class="var-value">${val}</span>
+        </div>
+    `).join("");
+  }
+
   function updateEmulationView() {
     const steps = getStepsWithLiveLayout();
     const emulatedSteps = GrafcetEmulator.getUpdateSteps(steps);
     
+    renderVariableDisplay();
+
     if (activeTab === "tab-level1") {
         canvas1.renderSteps(emulatedSteps);
     } else if (activeTab === "tab-level2") {
@@ -430,7 +463,25 @@ export function renderIDE(container) {
   }
 
   function autoSave(value) {
-    localStorage.setItem("autosave_cnl", value);
+    // Obtener posiciones actuales del canvas para no perderlas
+    const canvasStateData = canvas1.getState();
+    const layoutMeta = {};
+    canvasStateData.steps.forEach(s => {
+      layoutMeta[s.name] = { 
+        position: s.position,
+        transitions: (s.transitions || []).map(t => ({
+          target: t.target,
+          condition: t.condition,
+          manualX: t.manualX,
+          manualY: t.manualY
+        }))
+      };
+    });
+
+    const metadataBlock = `\n/* LAYOUT_DATA: ${JSON.stringify(layoutMeta)} */`;
+    const cleanText = value.replace(/\/\* LAYOUT_DATA: .* \*\//, "").trim();
+    
+    localStorage.setItem("autosave_cnl", cleanText + metadataBlock);
     localStorage.setItem("autosave_filename", currentFileName);
   }
 
@@ -463,7 +514,25 @@ export function renderIDE(container) {
   function applyParser(text) {
     if (isEmulating) return; 
     const parsed = parseCnlText(text);
-    grafcetCanvas?.renderSteps(parsed.steps);
+    
+    // Sincronizar con el estado actual del canvas antes de renderizar
+    const liveLayout = canvas1.getState().steps;
+    const mergedSteps = parsed.steps.map(s => {
+      const live = liveLayout.find(l => l.name === s.name);
+      if (live && live.position) {
+        return {
+          ...s,
+          position: live.position,
+          transitions: s.transitions.map(t => {
+            const lt = live.transitions?.find(lt => lt.target === t.target && lt.condition === t.condition);
+            return lt ? { ...t, manualX: lt.manualX, manualY: lt.manualY } : t;
+          })
+        };
+      }
+      return s;
+    });
+
+    grafcetCanvas?.renderSteps(mergedSteps);
     renderErrors(parsed.errors);
   }
 
