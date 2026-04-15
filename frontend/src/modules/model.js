@@ -1,6 +1,7 @@
 const STATE_PATTERN = /^S(\d+)$/i;
 const LINE_PATTERN =
   /^\s*(S\d+)\s+(?:THEN\s+(.+?)\s+)?NEXT\s+(.+?)\s*->\s*(S\d+)\s*$/i;
+const ACTION_ONLY_PATTERN = /^\s*(S\d+)\s+THEN\s+(.+?)\s*$/i;
 
 function createState(id) {
   const match = STATE_PATTERN.exec(id.toUpperCase());
@@ -25,17 +26,30 @@ function pushStateError(state, message, errors, line = null) {
 
 function parseLine(line) {
   const match = LINE_PATTERN.exec(line);
-  if (!match) {
-    return null;
+  if (match) {
+    const [, source, action, condition, target] = match;
+    return {
+      source: source.toUpperCase(),
+      target: target.toUpperCase(),
+      condition: condition?.trim() ?? "",
+      action: action?.trim() ?? "",
+      isFullTransition: true
+    };
   }
 
-  const [, source, action, condition, target] = match;
-  return {
-    source: source.toUpperCase(),
-    target: target.toUpperCase(),
-    condition: condition?.trim() ?? "",
-    action: action?.trim() ?? "",
-  };
+  const actionMatch = ACTION_ONLY_PATTERN.exec(line);
+  if (actionMatch) {
+    const [, source, action] = actionMatch;
+    return {
+      source: source.toUpperCase(),
+      target: null,
+      condition: null,
+      action: action.trim(),
+      isFullTransition: false
+    };
+  }
+
+  return null;
 }
 
 function ensureState(map, id) {
@@ -78,58 +92,33 @@ export function parseCnlText(text = "") {
       return;
     }
 
-    const { source, target, condition, action } = parsed;
+    const { source, target, condition, action, isFullTransition } = parsed;
     const sourceState = ensureState(stateMap, source);
-    const targetState = ensureState(stateMap, target);
-    if (Number.isFinite(sourceState.number)) {
-      definedLevelNumbers.add(sourceState.number);
-    }
-    if (Number.isFinite(targetState.number)) {
-      definedLevelNumbers.add(targetState.number);
-    }
+    
+    if (isFullTransition) {
+      const targetState = ensureState(stateMap, target);
+      if (Number.isFinite(sourceState.number)) definedLevelNumbers.add(sourceState.number);
+      if (Number.isFinite(targetState.number)) definedLevelNumbers.add(targetState.number);
 
-    const normalizedCondition = (condition ?? "").trim().toUpperCase();
-    const conflictKey = `${source}:${normalizedCondition}`;
-    if (conditionMap.has(conflictKey)) {
-      pushStateError(
-        sourceState,
-        `Condición duplicada '${condition || "AUTO"}' desde ${source}.`,
-        errors,
-        index + 1,
-      );
-    } else {
-      conditionMap.set(conflictKey, true);
-    }
+      const normalizedCondition = (condition ?? "").trim().toUpperCase();
+      const conflictKey = `${source}:${normalizedCondition}`;
+      if (conditionMap.has(conflictKey)) {
+        pushStateError(sourceState, `Condición duplicada '${condition || "AUTO"}' desde ${source}.`, errors, index + 1);
+      } else {
+        conditionMap.set(conflictKey, true);
+      }
 
-    if (!STATE_PATTERN.test(source)) {
-      errors.push({
-        line: index + 1,
-        message: `Identificador de etapa origen inválido: ${source}.`,
-      });
-    }
-    if (!STATE_PATTERN.test(target)) {
-      errors.push({
-        line: index + 1,
-        message: `Identificador de etapa destino inválido: ${target}.`,
-      });
-    }
+      if (!STATE_PATTERN.test(source)) errors.push({ line: index + 1, message: `Origen inválido: ${source}.` });
+      if (!STATE_PATTERN.test(target)) errors.push({ line: index + 1, message: `Destino inválido: ${target}.` });
 
-    const transition = {
-      from: source,
-      to: target,
-      condition,
-      action,
-      line: index + 1,
-    };
-    transitions.push(transition);
-    sourceState.outgoing.push(transition);
-    targetState.incoming.add(transition);
+      const transition = { from: source, to: target, condition, action, line: index + 1 };
+      transitions.push(transition);
+      sourceState.outgoing.push(transition);
+      targetState.incoming.add(transition);
+    }
 
     if (action) {
-      const pieces = action
-        .split(",")
-        .map((part) => part.trim())
-        .filter(Boolean);
+      const pieces = action.split(",").map((part) => part.trim()).filter(Boolean);
       pieces.forEach((piece) => {
         if (!sourceState.actions.includes(piece)) {
           sourceState.actions.push(piece);
