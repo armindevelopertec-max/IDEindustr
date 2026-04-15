@@ -18,7 +18,7 @@ const ACTION_BADGE_SPACING = 8;
 const ACTION_BADGE_HORIZONTAL_PADDING = 10;
 const ACTION_PANEL_MIN_WIDTH = 90;
 const ACTION_BADGE_MIN_WIDTH = 60;
-const ACTION_FONT_SIZE = 11;
+const ACTION_FONT_SIZE = 8.5;
 const ACTIONS_PER_ROW = 2;
 const STATE_PADDING_HORIZONTAL = 14;
 const STATE_MIN_WIDTH = 100;
@@ -398,7 +398,7 @@ export function setupGrafcetCanvas(containerId) {
         y: pos.y,
         width: stateWidth,
         align: "center",
-        text: `${step.name ?? ""}`,
+        text: `${(step.name ?? "").toUpperCase()}`,
         fill: "#041725",
         fontSize: 16,
         fontStyle: "bold",
@@ -459,14 +459,14 @@ export function setupGrafcetCanvas(containerId) {
               shadowOpacity: 0.5
             });
             const actionLabel = new Konva.Text({
-              x: actionRect.x() + ACTION_BADGE_HORIZONTAL_PADDING,
+              x: actionRect.x(),
               y: actionRect.y() + (ACTION_BADGE_HEIGHT - ACTION_FONT_SIZE) / 2,
-              text: item.text,
+              text: (item.text || "").toUpperCase(),
               fontSize: ACTION_FONT_SIZE,
-              fontStyle: isLit ? "bold" : "normal",
+              fontStyle: "bold",
               fill: isLit ? "#041725" : ACTION_ITEM_TEXT,
-              width: actionRect.width() - ACTION_BADGE_HORIZONTAL_PADDING * 2,
-              align: "left",
+              width: actionRect.width(),
+              align: "center",
             });
             layer.add(actionRect, actionLabel);
             cursorX += item.width + ACTION_BADGE_SPACING;
@@ -616,13 +616,12 @@ export function setupGrafcetCanvas(containerId) {
 
         const labelValue = {
           targetId: transition.target,
-          text: transition.condition ?? "AUTO",
+          text: (transition.condition ?? "AUTO").toUpperCase(),
           x: targetCenterX,
           y: finalTargetEntryY - 14,
           originalTransition: transition,
           color: arrowColor
         };
-
         if (shouldLoop) {
           const bucket = loopLabelBuckets.get(transition.source) ?? [];
           bucket.push({ 
@@ -702,12 +701,14 @@ export function setupGrafcetCanvas(containerId) {
           shadowBlur: entry.met ? 5 : 0,
         });
         const text = new Konva.Text({
-          x: baseX + 4,
+          x: baseX,
           y: currentY + 3,
           text: entry.text,
           fontSize: 11,
           fontStyle: "bold",
           fill: entry.color,
+          width: entry.width + 8,
+          align: "center",
         });
         layer.add(rect, text);
         currentY += 22;
