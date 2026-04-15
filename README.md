@@ -1,7 +1,7 @@
 # Compilador Industrial IDE 🚀
 
 <div align="center">
-  <video src="https://github.com/armindevelopertec-max/IDEindustr/raw/main/fastIDE.mp4" width="100%" controls></video>
+  <video src="fastIDE.mp4" controls title="Demo Compilador Industrial" style="max-width: 100%;"></video>
 </div>
 
 ---
