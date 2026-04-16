@@ -13,6 +13,11 @@ let activeTab = "tab-level1";
 let isEmulating = false;
 
 export function renderIDE(container) {
+  // Verificar si estamos en un contexto seguro (necesario para la API de archivos)
+  if (window.location.hostname === "0.0.0.0") {
+    console.warn("Estás usando 0.0.0.0. Se recomienda usar http://localhost:8080 para habilitar el guardado de archivos sin bloqueos.");
+  }
+
   container.innerHTML = `
     <nav class="ide-navbar">
       <div class="nav-left">
@@ -404,43 +409,75 @@ export function renderIDE(container) {
     const cleanText = cnlEditor.value.replace(/\/\* LAYOUT_DATA: .* \*\//, "").trim();
     const content = cleanText + metadataBlock;
     
-    // Si no tenemos handle y el navegador soporta la API moderna, pedimos dónde guardar
-    if (!fileHandle && window.showSaveFilePicker) {
-      try {
-        fileHandle = await window.showSaveFilePicker({
-          suggestedName: currentFileName,
-          types: [{ description: "Archivos CNL", accept: { "text/plain": [".cnl", ".txt"] } }],
-        });
-        currentFileName = fileHandle.name;
-        updateFilenameDisplay();
-      } catch (err) {
-        console.warn("Guardado cancelado por el usuario.");
-        return;
-      }
-    }
-
-    // Si tenemos handle (ya sea de antes o recién creado), sobreescribimos
+    // 1. Intentar usar el fileHandle existente para SOBREESCRIBIR
     if (fileHandle) {
       try {
+        // Verificar si todavía tenemos permiso de escritura
+        const options = { mode: 'readwrite' };
+        if (await fileHandle.queryPermission(options) !== 'granted') {
+          if (await fileHandle.requestPermission(options) !== 'granted') {
+            throw new Error("Permiso denegado para escribir en el archivo.");
+          }
+        }
+
         const writable = await fileHandle.createWritable();
         await writable.write(content);
         await writable.close();
         showSaveVisualFeedback();
         return;
       } catch (err) {
-        console.error("Error al guardar en el archivo:", err);
+        console.error("Error al sobreescribir el archivo original, intentando 'Guardar como...':", err);
       }
     }
 
-    // Fallback: Descarga tradicional (solo si el navegador no soporta File System Access API)
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = currentFileName;
-    a.click();
-    URL.revokeObjectURL(url);
-    showSaveVisualFeedback();
+    // 2. Si no hay fileHandle o falló el anterior, usar el Selector de Archivos (Guardar como...)
+    if (window.showSaveFilePicker) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: currentFileName,
+          types: [{ description: "Archivos CNL", accept: { "text/plain": [".cnl", ".txt"] } }],
+        });
+        
+        fileHandle = handle;
+        currentFileName = fileHandle.name;
+        updateFilenameDisplay();
+        
+        const writable = await fileHandle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        showSaveVisualFeedback();
+        return;
+      } catch (err) {
+        console.warn("Guardado fallido o cancelado:", err);
+        
+        // Si es un error de seguridad (por no usar localhost/https), avisamos al usuario
+        if (err.name === 'SecurityError' || (err.message && err.message.includes('secure context'))) {
+          alert("Error de seguridad: Para poder sobreescribir archivos, debes usar http://localhost:8080 en lugar de la IP del contenedor.");
+          return;
+        }
+
+        // Si el usuario simplemente canceló la ventana, no hacemos nada más
+        if (err.name === 'AbortError') return;
+      }
+    }
+
+    // 3. Fallback final: Descarga tradicional
+    // Solo llegamos aquí si el navegador NO soporta showSaveFilePicker (como Firefox)
+    // O si estamos en un contexto no seguro y no pudimos usar la API anterior.
+    if (!window.showSaveFilePicker) {
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = currentFileName;
+      a.click();
+      URL.revokeObjectURL(url);
+      showSaveVisualFeedback();
+    } else {
+      // Si el navegador SOPORTA la API pero falló (y no fue cancelado), no descargamos nada
+      // para evitar los archivos duplicados (1), (2), etc.
+      console.info("Descarga automática cancelada para evitar duplicados. Usa el diálogo de guardado.");
+    }
   }
 
   function showSaveVisualFeedback() {
