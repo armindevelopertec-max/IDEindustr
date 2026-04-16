@@ -1,0 +1,22 @@
+s0 next Si, OM -> S1
+S1 THEN OPE+ NEXT R1 -> S2
+S2 THEN AVANCE NEXT Sm -> s3
+s2 next PARAR -> s10
+s3 then retroceso next si -> s4
+s3 next PARAR -> s10
+s4 then CONT1=3 NEXT not cont1 -> s2
+s4 NEXT cont1 -> s5
+S1 NEXT R2 -> S6
+s6 then AVANCE NEXT sf -> s7
+s6 next PARAR -> s10
+s7 then retroceso next si -> s8
+s7 next PARAR -> s10
+s8 then cont2=3 next not cont2 -> s6
+s8 next cont2 -> s5
+s5 then pre, t=3seg next t0, parar -> s9
+s5 next t0, not parar -> s1
+s9 then OPE- next 1 -> s0
+s10 then RETROCESO next si -> s9
+s9 then cont1=0
+s9 then cont2=0
+/* LAYOUT_DATA: {"S0":{"position":{"x":387.9138556749281,"y":46.298583099098835}},"S1":{},"S2":{"position":{"x":355.0370056580644,"y":276.2592015322664}},"S6":{"position":{"x":765.4444915129035,"y":276.2592015322665}},"S3":{"position":{"x":368.92592816728137,"y":427.25929321631384}},"S7":{"position":{"x":751.7447897669066,"y":422.0287464014437}},"S10":{"position":{"x":14.746044735687757,"y":560.1523226106808}},"S4":{"position":{"x":350.72538280122956,"y":547.7037172865256}},"S8":{"position":{"x":767.257371730284,"y":551.5629906990848}},"S5":{"position":{"x":508.8504095485573,"y":665.7132901776324}},"S9":{"position":{"x":579.2908632863977,"y":807.1454455381556}}} */
