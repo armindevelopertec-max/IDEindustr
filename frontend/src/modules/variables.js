@@ -22,6 +22,14 @@ export const VariableMapper = {
         this.mappings.timers.clear();
     },
 
+    normalizeConditionToken(token) {
+        return (token || "")
+            .replace(/\bNOT\b/gi, "")
+            .replace(/[=<>!#].*/, "")
+            .trim()
+            .toUpperCase();
+    },
+
     generateMappings(steps) {
         this.reset();
         
@@ -67,14 +75,13 @@ export const VariableMapper = {
                 const parts = condition.split(/[,]|AND/i).map(p => p.trim());
                 
                 parts.forEach(part => {
-                    let cleanPart = part.replace(/\bNOT\b/gi, '').trim();
-                    cleanPart = cleanPart.replace(/[=<>!#].*/, '').trim();
+                    const cleanPart = this.normalizeConditionToken(part);
                     
                     if (cleanPart === "1" || cleanPart === "" || !isNaN(cleanPart)) return;
 
-                    if (this.isTimer(part)) {
+                    if (this.isTimer(cleanPart)) {
                         this.registerTimer(cleanPart);
-                    } else if (this.isCounter(part)) {
+                    } else if (this.isCounter(cleanPart)) {
                         this.registerCounter(cleanPart);
                     } else {
                         const isState = this.mappings.states.has(cleanPart);
@@ -127,6 +134,8 @@ export const VariableMapper = {
 
         const isNegated = /\bNOT\b/i.test(symbolUpper);
         let cleanSymbol = symbolUpper.replace(/\bNOT\b/gi, '').trim();
+        const isTimerSymbol = /^(T|TIM)\d+$/i.test(cleanSymbol);
+        const isCounterSymbol = /^(CONT|CNT)\d+$/i.test(cleanSymbol);
 
         // REGLA DE ORO: Si es un estado Sxx, siempre es 1.xx (Nivel 2)
         if (cleanSymbol.match(/^S\d+$/i)) {
@@ -156,13 +165,13 @@ export const VariableMapper = {
         let baseSymbol = cleanSymbol.replace(/[+-]/g, '').trim();
         let result = baseSymbol;
 
-        const timerKey = this.findKey(this.mappings.timers, baseSymbol);
-        const counterKey = this.findKey(this.mappings.counters, baseSymbol);
+        const counterKey = isCounterSymbol ? this.findKey(this.mappings.counters, baseSymbol) : null;
+        const timerKey = isTimerSymbol ? this.findKey(this.mappings.timers, baseSymbol) : null;
 
-        if (timerKey) {
-            result = this.mappings.timers.get(timerKey);
-        } else if (counterKey) {
+        if (counterKey) {
             result = this.mappings.counters.get(counterKey);
+        } else if (timerKey) {
+            result = this.mappings.timers.get(timerKey);
         } else if (this.mappings.states.has(baseSymbol)) {
             result = this.mappings.states.get(baseSymbol);
         } else if (this.mappings.conditions.has(baseSymbol)) {

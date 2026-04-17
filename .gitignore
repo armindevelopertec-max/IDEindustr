@@ -25,4 +25,5 @@ dist-ssr/
 Thumbs.db
 
 # Project-specific
+.codex
 .codex/
