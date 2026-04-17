@@ -63,7 +63,6 @@ export const LadderEngine = {
           targetStep: step.name,
           activationBranches: activationBranches,
           breakStates: nextStates,
-          globalStop: this.detectStopSignal(steps), 
           output: { type: 'COIL', mode: 'NORMAL', label: step.name }
         });
       }
@@ -139,18 +138,6 @@ export const LadderEngine = {
     });
 
     return rungs;
-  },
-
-  detectStopSignal(steps) {
-      for (const s of steps) {
-          for (const t of s.transitions) {
-              const cond = (t.condition || "").toLowerCase();
-              if (cond.includes('sto') || cond.includes('parar')) {
-                  return { type: 'NC', label: cond.includes(',') ? 'STO' : cond.toUpperCase() };
-              }
-          }
-      }
-      return null;
   },
 
   findFollowingStates(targetStateName, steps) {
@@ -278,13 +265,6 @@ export const LadderEngine = {
         lastX = nextX + 20;
         nextX += GRID_W;
     });
-
-    if (rung.globalStop) {
-        layer.add(new Konva.Line({ points: [lastX, y, nextX - 20, y], stroke: '#fff', strokeWidth: 3 }));
-        this.drawContact(layer, nextX, y, { type: 'NC', label: rung.globalStop.label }, mapper);
-        lastX = nextX + 20;
-        nextX += GRID_W;
-    }
 
     if (lastX < outputEntryX) {
         layer.add(new Konva.Line({ points: [lastX, y, outputEntryX, y], stroke: '#fff', strokeWidth: 3 }));

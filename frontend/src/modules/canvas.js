@@ -357,6 +357,12 @@ export function setupGrafcetCanvas(containerId) {
       });
     });
 
+    canvasState.steps.forEach((step) => {
+      const pos = positions[step.name];
+      if (!pos || step.position) return;
+      step.position = { x: pos.x, y: pos.y };
+    });
+
     const finalStageHeight = Math.max(containerElement?.clientHeight ?? 420, requiredHeight + 80, 400);
     stage.width(layoutStageWidth);
     stage.height(finalStageHeight);

@@ -102,6 +102,19 @@ body {
   min-height: 0;
 }
 
+.ide-main.editor-hidden {
+  gap: 0;
+}
+
+.ide-main.editor-hidden .ide-panel-left {
+  display: none;
+}
+
+.ide-main.editor-hidden .ide-panel-right {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
 .ide-panel-left {
   width: 30%;
   height: 100%;
@@ -394,6 +407,16 @@ textarea.editor-base {
 .btn-primary:hover {
   background: #3ee08f;
   transform: translateY(-1px);
+}
+
+.btn-toggle-editor.active {
+  background: var(--node-active);
+  color: #041725;
+  border: none;
+}
+
+.btn-toggle-editor.active:hover {
+  background: #3ee08f;
 }
 
 .filename-container {

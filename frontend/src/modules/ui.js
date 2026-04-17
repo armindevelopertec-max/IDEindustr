@@ -18,6 +18,9 @@ export function renderIDE(container) {
     console.warn("Estás usando 0.0.0.0. Se recomienda usar http://localhost:8080 para habilitar el guardado de archivos sin bloqueos.");
   }
 
+  const savedEditorHidden = localStorage.getItem("ui_editor_hidden") === "1";
+  let isEditorHidden = savedEditorHidden;
+
   container.innerHTML = `
     <nav class="ide-navbar">
       <div class="nav-left">
@@ -50,11 +53,15 @@ export function renderIDE(container) {
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
               Guardar
             </button>
+            <button id="btn-toggle-editor" class="btn-icon btn-toggle-editor" title="Ocultar editor" aria-pressed="false">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"></rect><path d="M14 8l4 4-4 4"></path><path d="M18 12H11"></path></svg>
+              Ocultar editor
+            </button>
           </div>
           <input type="file" id="file-input" style="display: none;" accept=".cnl,.txt">
         </div>
       </div>
-    </nav>
+  </nav>
     <section class="ide-main">
       <aside class="ide-panel-left">
         <article class="ide-card editor-card">
@@ -123,6 +130,13 @@ export function renderIDE(container) {
     </section>
   `;
 
+  const ideMain = container.querySelector(".ide-main");
+  const btnToggleEditor = document.getElementById("btn-toggle-editor");
+  if (ideMain) {
+    ideMain.classList.toggle("editor-hidden", isEditorHidden);
+  }
+  updateEditorToggleButton();
+
   const cnlEditor = document.getElementById("cnl-editor");
   const highlightLayer = container.querySelector(".cnl-highlight");
   const errorContainer = document.getElementById("editor-errors");
@@ -160,6 +174,61 @@ export function renderIDE(container) {
     getState: () => canvas1.getState()
   };
 
+  function renderActiveView() {
+    if (isEmulating) {
+      updateEmulationView();
+      return;
+    }
+
+    if (activeTab === "tab-level1") {
+      canvas1.renderSteps(getStepsWithLiveLayout());
+    } else if (activeTab === "tab-level2") {
+      const translated = getStepsWithLiveLayout().map(step => ({
+        ...step,
+        name: VariableMapper.translate(step.name),
+        actions: (step.actions || []).map(a => VariableMapper.translate(a)),
+        transitions: (step.transitions || []).map(t => ({
+          ...t,
+          source: VariableMapper.translate(t.source),
+          target: VariableMapper.translate(t.target),
+          condition: VariableMapper.translateList(t.condition)
+        }))
+      }));
+      canvas2.renderSteps(translated);
+    } else if (activeTab === "tab-ladder") {
+      const parsed = parseCnlText(cnlEditor.value);
+      const ir = LadderEngine.generateIR(parsed.steps);
+      LadderEngine.render("ladder-canvas", ir, VariableMapper);
+    } else if (activeTab === "tab-vars") {
+      const parsed = parseCnlText(cnlEditor.value);
+      VariableMapper.generateMappings(parsed.steps);
+      document.getElementById("variables-dictionary").innerHTML = VariableMapper.generateDictionaryHTML();
+    }
+  }
+
+  function updateEditorToggleButton() {
+    if (!btnToggleEditor) return;
+    btnToggleEditor.classList.toggle("active", isEditorHidden);
+    btnToggleEditor.setAttribute("aria-pressed", String(isEditorHidden));
+    btnToggleEditor.title = isEditorHidden ? "Mostrar editor" : "Ocultar editor";
+    btnToggleEditor.innerHTML = isEditorHidden
+      ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"></rect><path d="M10 8l-4 4 4 4"></path><path d="M13 12H20"></path></svg> Mostrar editor`
+      : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="7" height="16" rx="1.5"></rect><path d="M14 8l4 4-4 4"></path><path d="M18 12H11"></path></svg> Ocultar editor`;
+  }
+
+  function setEditorVisibility(hidden) {
+    isEditorHidden = hidden;
+    if (ideMain) {
+      ideMain.classList.toggle("editor-hidden", hidden);
+    }
+    updateEditorToggleButton();
+    localStorage.setItem("ui_editor_hidden", hidden ? "1" : "0");
+
+    requestAnimationFrame(() => {
+      renderActiveView();
+    });
+  }
+
   const tabs = container.querySelectorAll(".tab-link");
   const contents = container.querySelectorAll(".tab-content");
 
@@ -175,30 +244,15 @@ export function renderIDE(container) {
       });
       
       tab.classList.add("active");
-
-      if (isEmulating) {
-        updateEmulationView();
-        return;
-      }
-
-      if (targetId === "tab-level1") {
-        canvas1.renderSteps(canvas1.getState().steps);
-      } else if (targetId === "tab-level2") {
-        canvas2.renderSteps(canvas2.getState().steps);
-      } else if (targetId === "tab-ladder") {
-        const parsed = parseCnlText(cnlEditor.value);
-        const ir = LadderEngine.generateIR(parsed.steps);
-        LadderEngine.render("ladder-canvas", ir, VariableMapper);
-      } else if (targetId === "tab-vars") {
-        const parsed = parseCnlText(cnlEditor.value);
-        VariableMapper.generateMappings(parsed.steps);
-        document.getElementById("variables-dictionary").innerHTML = VariableMapper.generateDictionaryHTML();
-      }
+      renderActiveView();
     });
   });
 
   const btnRun = document.getElementById("btn-run");
   btnRun.addEventListener("click", toggleEmulation);
+  btnToggleEditor?.addEventListener("click", () => {
+    setEditorVisibility(!isEditorHidden);
+  });
 
   function toggleEmulation() {
     isEmulating = !isEmulating;
@@ -220,8 +274,7 @@ export function renderIDE(container) {
         updateEmulationView();
     } else {
         emulationPanel.classList.add("hidden");
-        const steps = getStepsWithLiveLayout();
-        grafcetCanvas.renderSteps(steps);
+        renderActiveView();
         const parsed = parseCnlText(cnlEditor.value);
         renderErrors(parsed.errors);
     }
