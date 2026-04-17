@@ -48,11 +48,21 @@ export const LadderEngine = {
       });
 
       if (isInitial) {
-          const otherStates = stateNames.filter(n => n !== step.name);
-          activationBranches.push({
-              prevStep: 'P_First_Cycle',
-              conditions: otherStates.map(n => ({ type: 'NC', label: n }))
-          });
+          const initialClosedStates = [...stateNames]
+              .filter((name) => {
+                  const match = name.match(/^S(\d+)$/i);
+                  return match ? Number(match[1]) >= 2 : false;
+              })
+              .sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+
+          if (initialClosedStates.length > 0) {
+              const [firstClosedState, ...remainingClosedStates] = initialClosedStates;
+              activationBranches.push({
+                  prevStep: firstClosedState,
+                  prevType: 'NC',
+                  conditions: remainingClosedStates.map(n => ({ type: 'NC', label: n }))
+              });
+          }
       }
 
       if (activationBranches.length > 0) {
@@ -229,7 +239,7 @@ export const LadderEngine = {
         if (idx > 0) layer.add(new Konva.Line({ points: [startX + 20, y, startX + 20, branchY], stroke: '#fff', strokeWidth: 3 }));
         
         layer.add(new Konva.Line({ points: [startX + 20, branchY, startX + 40 - 20, branchY], stroke: '#fff', strokeWidth: 3 }));
-        this.drawContact(layer, startX + 40, branchY, { type: 'NO', label: branch.prevStep }, mapper);
+        this.drawContact(layer, startX + 40, branchY, { type: branch.prevType || 'NO', label: branch.prevStep }, mapper);
         
         let curX = startX + 40 + GRID_W;
         let prevContactEndX = startX + 40 + 20;
