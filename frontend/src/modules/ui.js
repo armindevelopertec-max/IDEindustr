@@ -439,7 +439,8 @@ export function renderIDE(container) {
     currentFileName = fileName || currentFileName;
     updateFilenameDisplay();
     updateHighlight(cleanText);
-    applyParser(fullText);
+    // Al abrir un archivo, se respeta su propio layout guardado en vez del canvas anterior.
+    applyParser(fullText, false);
     autoSave(fullText);
   }
 
@@ -601,28 +602,33 @@ export function renderIDE(container) {
       .join("");
   }
 
-  function applyParser(text) {
+  function applyParser(text, preserveLiveLayout = true) {
     if (isEmulating) return; 
     const parsed = parseCnlText(text);
-    
-    // Sincronizar con el estado actual del canvas antes de renderizar
-    const liveLayout = canvas1.getState().steps;
-    const mergedSteps = parsed.steps.map(s => {
-      const live = liveLayout.find(l => l.name === s.name);
-      if (live && live.position) {
-        return {
-          ...s,
-          position: live.position,
-          transitions: s.transitions.map(t => {
-            const lt = live.transitions?.find(lt => lt.target === t.target && lt.condition === t.condition);
-            return lt ? { ...t, manualX: lt.manualX, manualY: lt.manualY } : t;
-          })
-        };
-      }
-      return s;
-    });
 
-    grafcetCanvas?.renderSteps(mergedSteps);
+    if (preserveLiveLayout) {
+      // Cuando el usuario edita el archivo actual, conservamos las posiciones arrastradas.
+      const liveLayout = canvas1.getState().steps;
+      const mergedSteps = parsed.steps.map(s => {
+        const live = liveLayout.find(l => l.name === s.name);
+        if (live && live.position) {
+          return {
+            ...s,
+            position: live.position,
+            transitions: s.transitions.map(t => {
+              const lt = live.transitions?.find(lt => lt.target === t.target && lt.condition === t.condition);
+              return lt ? { ...t, manualX: lt.manualX, manualY: lt.manualY } : t;
+            })
+          };
+        }
+        return s;
+      });
+
+      grafcetCanvas?.renderSteps(mergedSteps);
+    } else {
+      grafcetCanvas?.renderSteps(parsed.steps);
+    }
+
     renderErrors(parsed.errors);
   }
 
