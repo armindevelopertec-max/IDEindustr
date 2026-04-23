@@ -369,6 +369,12 @@ export function renderIDE(container) {
             }))
         }));
         canvas2.renderSteps(translated);
+    } else if (activeTab === "tab-ladder") {
+        const parsed = parseCnlText(cnlEditor.value);
+        const ir = LadderEngine.generateIR(parsed.steps);
+        const liveState = { ...GrafcetEmulator.inputs, ...GrafcetEmulator.getLiveVariables() };
+        GrafcetEmulator.activeSteps.forEach(s => liveState[s] = true);
+        LadderEngine.render("ladder-canvas", ir, VariableMapper, liveState);
     }
   }
 
